@@ -158,6 +158,75 @@ def parse_rule(text: str) -> tuple[ScheduleRule | None, str]:
     return rule, "mock"
 
 
+# ==== parse-holiday：公告文本 → 校历覆盖（任务书 4.3 / 验收 A19 配套） ====
+
+
+def parse_holiday_mock(text: str, today: date) -> list[dict]:
+    """mock 公告解析：处理"X月X日至X月X日放假""X月X日放假N天""X月X日上班"。
+
+    返回覆盖字典列表（不含 semester/version，由路由层填充）。
+    """
+    overrides: list[dict] = []
+
+    def _md(m: re.Match) -> date:
+        return today.replace(month=int(m.group(1)), day=int(m.group(2)))
+
+    # 区间：X月X日至（X月）X日放假
+    for m in re.finditer(
+        r"(\d{1,2})月(\d{1,2})日[至到](?:(\d{1,2})月)?(\d{1,2})日[^，。,;；]*?(放假|休息)", text
+    ):
+        start = _md(m)
+        end_month = int(m.group(3)) if m.group(3) else start.month
+        end = today.replace(month=end_month, day=int(m.group(4)))
+        if end < start:
+            continue
+        d = start
+        while d <= end:
+            overrides.append(
+                {"date": d.isoformat(), "day_type": "holiday", "follow_weekday": None, "note": "公告解析"}
+            )
+            d += timedelta(days=1)
+
+    # 单日 + 天数：X月X日放假N天
+    for m in re.finditer(r"(\d{1,2})月(\d{1,2})日放假([0-9一二两三四五六七八九十]+)天", text):
+        start = _md(m)
+        for i in range(_cn_num(m.group(3))):
+            d = start + timedelta(days=i)
+            if not any(o["date"] == d.isoformat() for o in overrides):
+                overrides.append(
+                    {"date": d.isoformat(), "day_type": "holiday", "follow_weekday": None, "note": "公告解析"}
+                )
+
+    # 补班：X月X日上班/上课（默认按周五课表执行，用户可在校历里改）
+    for m in re.finditer(r"(\d{1,2})月(\d{1,2})日[^，。,;；]{0,6}(上班|上课)", text):
+        d = _md(m)
+        overrides.append(
+            {"date": d.isoformat(), "day_type": "workday", "follow_weekday": 4, "note": "公告解析：补班按周五课表"}
+        )
+
+    logger.debug("公告解析(mock): %d 条覆盖", len(overrides))
+    return overrides
+
+
+def parse_holiday(text: str, today: date) -> tuple[list[dict], str]:
+    """AI 优先解析公告，失败降级 mock。"""
+    if ai_enabled():
+        system = (
+            "你是校历公告解析器。从放假安排公告里提取所有日期安排，输出 JSON 数组："
+            '[{"date":"YYYY-MM-DD","day_type":"holiday|workday","follow_weekday":null或0-6,"note":"..."}]。'
+            "workday（补班）需给 follow_weekday（按周几课表上课，周一为0）。只输出 JSON 数组。"
+        )
+        try:
+            content = _moma_chat(system, text)
+            data = json.loads(content)
+            if isinstance(data, list):
+                logger.debug("公告解析(ai): %d 条覆盖", len(data))
+                return data, "ai"
+        except Exception as e:  # noqa: BLE001
+            logger.warning("MoMA 公告解析失败，降级 mock：%s", e)
+    return parse_holiday_mock(text, today), "mock"
+
+
 # ==== ask：课表问答 ====
 
 

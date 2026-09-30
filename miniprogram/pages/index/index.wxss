@@ -1,1 +1,17 @@
 /* 首页复用全局 card / title / secondary 样式 */
+
+.quick-row {
+  display: flex;
+  gap: 20rpx;
+  margin: 0 24rpx;
+}
+
+.quick {
+  flex: 1;
+  background: var(--card);
+  border-radius: 20rpx;
+  padding: 32rpx;
+  text-align: center;
+  font-size: 28rpx;
+  box-shadow: 0 2rpx 12rpx rgba(31, 35, 41, 0.06);
+}

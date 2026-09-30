@@ -263,3 +263,47 @@
   color: var(--danger);
   font-size: 26rpx;
 }
+
+/* 阶段四：详情弹层封面 */
+.detail-head {
+  display: flex;
+  gap: 20rpx;
+}
+
+.detail-cover {
+  width: 120rpx;
+  height: 160rpx;
+  border-radius: 8rpx;
+  flex-shrink: 0;
+}
+
+.detail-head-text {
+  flex: 1;
+}
+
+/* A21：调课建议 */
+.sug-box {
+  margin-top: 14rpx;
+  background: var(--brand-light);
+  border-radius: 12rpx;
+  padding: 16rpx 20rpx;
+}
+
+.sug-title {
+  color: var(--brand);
+  font-weight: 600;
+  font-size: 26rpx;
+}
+
+.sug-item {
+  color: var(--brand);
+  font-size: 24rpx;
+  margin-top: 10rpx;
+}
+
+.regen-row {
+  display: flex;
+  justify-content: center;
+  gap: 48rpx;
+  margin-top: 24rpx;
+}

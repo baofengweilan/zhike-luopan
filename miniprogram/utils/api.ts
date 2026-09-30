@@ -1,4 +1,5 @@
-import { request, getToken } from "./request";
+import { request } from "./request";
+import { getToken } from "./token";
 
 export interface Semester {
   id: string;
@@ -214,7 +215,7 @@ export interface AdjustPayload {
 export const adjustInstance = (instanceId: string, payload: AdjustPayload) =>
   request<{ instance_id: string; status: string; summary: string }>(
     `/api/instances/${instanceId}/adjust`,
-    { method: "POST", data: payload }
+    { method: "POST", data: { ...payload } }
   );
 
 export const listAdjustments = (instanceId: string) =>
@@ -307,7 +308,11 @@ export const deletePhoto = (id: string) =>
  * wx.uploadFile 的 Promise 封装：带 JWT，返回 JSON 字段。
  * 图片上传（封面/教室照片）统一走这里。
  */
-export function uploadFile<T = unknown>(path: string, filePath: string, formData?: Record<string, string>): Promise<T> {
+export function uploadFile<T = unknown>(
+  path: string,
+  filePath: string,
+  formData?: Record<string, string>
+): Promise<T> {
   const baseUrl = getApp<IAppOption>().globalData.baseUrl;
   return new Promise<T>((resolve, reject) => {
     wx.uploadFile({
@@ -335,4 +340,60 @@ export function uploadFile<T = unknown>(path: string, filePath: string, formData
       },
     });
   });
+}
+
+// ==== 提醒 / 订阅（阶段六） ====
+
+export interface Reminder {
+  id: string;
+  reminder_type: string;
+  trigger_time: string;
+  status: string;
+  channel: string | null;
+  message: string;
+}
+
+export const listReminders = () => request<Reminder[]>("/api/reminders");
+
+export const batchClassReminders = (semesterId: string, days = 7, minutesBefore = 30) =>
+  request<{ created: number; skipped: number; wx_configured: boolean }>(
+    "/api/reminders/batch",
+    { method: "POST", data: { semester_id: semesterId, days, minutes_before: minutesBefore } }
+  );
+
+export const createHolidayReminders = (semesterId: string) =>
+  request<{ created: number }>("/api/reminders/holiday", {
+    method: "POST",
+    data: { semester_id: semesterId },
+  });
+
+export const deleteReminder = (id: string) =>
+  request<void>(`/api/reminders/${id}`, { method: "DELETE" });
+
+export interface SubscribeConfig {
+  wx_configured: boolean;
+  templates: string[];
+}
+
+export const getSubscribeConfig = () =>
+  request<SubscribeConfig>("/api/wechat/subscribe-config");
+
+export const recordSubscribe = (templateId: string, grantedCount = 1) =>
+  request<{ granted_count: number; used_count: number }>("/api/wechat/subscribe", {
+    method: "POST",
+    data: { template_id: templateId, granted_count: grantedCount },
+  });
+
+/** AI 解析放假公告 → 校历覆盖 → 重新生成（A19） */
+export const parseHoliday = (semesterId: string, text: string) =>
+  request<{ added: string[]; skipped: unknown[]; source: string; regenerated: number }>(
+    "/api/ai/parse-holiday",
+    { method: "POST", data: { semester_id: semesterId, text } }
+  );
+
+export interface AdjustSuggestion {
+  date: string;
+  period_number: number;
+  start_time: string;
+  end_time: string;
 }

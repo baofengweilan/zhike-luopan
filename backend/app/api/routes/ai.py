@@ -1,4 +1,8 @@
+import logging
+
 """AI 能力（任务书 3.5 / 阶段 3.5）：规则解析应用 + 课表问答。"""
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
@@ -156,3 +160,90 @@ def ask(body: AskRequest, user: User = Depends(get_current_user), db: Session = 
     _save_conversation(db, user.id, semester.id, "user", f"[问答] {body.question}")
     _save_conversation(db, user.id, semester.id, "assistant", answer_text)
     return AskResponse(answer=answer_text)
+
+
+@router.post("/parse-holiday", response_model=dict)
+def parse_holiday_route(
+    body: dict, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    """AI 解析放假公告 → 落校历覆盖 → 重新生成课表（A19）。
+
+    body: {semester_id, text}。返回 {added, overrides, source}。
+    """
+    semester = _get_owned_semester(db, user, body.get("semester_id", ""))
+    text = str(body.get("text", "")).strip()
+    if not text:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "公告文本不能为空")
+
+    from datetime import datetime
+
+    from app.core.calendar import week_number  # noqa: F401 仅为类型提示一致性
+    from app.models.calendar import CalendarOverride, CalendarVersion
+    from app.services.ai import CST, parse_holiday
+    from app.services.generator import generate_instances
+
+    today = datetime.now(CST).date()
+    items, source = parse_holiday(text, today)
+
+    # 当前校历版本（没有则建 v1）
+    version = db.scalar(
+        select(CalendarVersion).where(
+            CalendarVersion.semester_id == semester.id, CalendarVersion.is_current.is_(True)
+        )
+    )
+    if version is None:
+        version = CalendarVersion(semester_id=semester.id, version=1, source="manual", is_current=True)
+        db.add(version)
+        db.flush()
+
+    # 过滤学期范围外的日期 + 同日已有覆盖的跳过（同日冲突不自动替换——公告解析可信度低于手动）
+    from datetime import date as date_type
+
+    existing = {
+        ov.date
+        for ov in db.scalars(
+            select(CalendarOverride).where(CalendarOverride.version_id == version.id)
+        )
+    }
+    added, skipped = [], []
+    for item in items:
+        try:
+            d = date_type.fromisoformat(str(item.get("date", "")))
+        except ValueError:
+            continue
+        if not (semester.start_date <= d <= semester.end_date):
+            skipped.append({"date": str(item.get("date")), "reason": "不在学期范围内"})
+            continue
+        if d in existing:
+            skipped.append({"date": str(item.get("date")), "reason": "当日已有覆盖"})
+            continue
+        db.add(
+            CalendarOverride(
+                semester_id=semester.id,
+                version_id=version.id,
+                date=d,
+                day_type=item.get("day_type", "holiday"),
+                follow_weekday=item.get("follow_weekday"),
+                note=f"AI/公告解析：{item.get('note', '')}"[:200],
+            )
+        )
+        existing.add(d)
+        added.append(d.isoformat())
+    db.flush()
+
+    created, _ = generate_instances(db, semester)
+    logger.info("公告解析应用: added=%s skipped=%s 重生成 %s 节", len(added), len(skipped), created)
+    return {"added": added, "skipped": skipped, "source": source, "regenerated": created}
+
+
+@router.post("/suggest-adjust", response_model=dict)
+def suggest_adjust(
+    body: dict, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    """调课建议（A21）：给定实例，返回无冲突的候选时段。body: {instance_id}。"""
+    from app.api.routes.adjustments import _get_owned_instance
+    from app.services.adjuster import find_suggestions
+
+    instance = _get_owned_instance(db, user, body.get("instance_id", ""))
+    suggestions = find_suggestions(db, db.get(Semester, instance.semester_id), instance)
+    return {"suggestions": suggestions}

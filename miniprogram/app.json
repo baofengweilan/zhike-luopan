@@ -8,7 +8,10 @@
     "pages/calendar/calendar",
     "pages/templates/templates",
     "pages/schedule/schedule",
-    "pages/ai/ai"
+    "pages/ai/ai",
+    "pages/textbooks/textbooks",
+    "pages/photos/photos",
+    "pages/reminders/reminders"
   ],
   "window": {
     "navigationBarBackgroundColor": "#2f6fed",

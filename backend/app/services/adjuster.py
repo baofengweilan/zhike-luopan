@@ -9,7 +9,7 @@
 """
 
 import logging
-from datetime import date
+from datetime import date, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -96,6 +96,60 @@ def detect_conflicts(
         semester.id, target_date, target_period, len(hard), len(soft),
     )
     return hard, soft
+
+
+def find_suggestions(
+    db: Session,
+    semester: Semester,
+    instance: ScheduleInstance,
+    horizon_days: int = 7,
+    max_n: int = 3,
+) -> list[dict]:
+    """AI 调课建议的候选来源（任务书 5.4 的确定性部分）：
+    在实例日期前后 horizon 天内找"无任何冲突"的 (日期, 节次) 组合，按日期就近排序。
+
+    AI 模式下这些候选作为约束校验的对象；mock 模式下它们直接就是建议。
+    """
+    suggestions: list[dict] = []
+    start = instance.date - timedelta(days=2)
+    end = instance.date + timedelta(days=horizon_days)
+    day = start
+    while day <= end and len(suggestions) < max_n:
+        current, day = day, day + timedelta(days=1)  # 先推进日期：continue 即"看下一天"（防死循环）
+        # 该日期所属时令的节次列表
+        season = db.scalar(
+            select(SeasonPeriod).where(
+                SeasonPeriod.semester_id == semester.id,
+                SeasonPeriod.start_date <= current,
+                SeasonPeriod.end_date >= current,
+            )
+        )
+        if season is None:
+            continue
+        bells = db.scalars(
+            select(BellSchedule)
+            .where(BellSchedule.season_period_id == season.id)
+            .order_by(BellSchedule.period_number)
+        ).all()
+        for bell in bells:
+            if current == instance.date and bell.period_number == instance.period_number:
+                continue  # 原位置不算建议
+            hard, soft = detect_conflicts(
+                db, semester, current, bell.period_number, instance.id
+            )
+            if not hard and not soft:
+                suggestions.append(
+                    {
+                        "date": current.isoformat(),
+                        "period_number": bell.period_number,
+                        "start_time": bell.start_time.strftime("%H:%M"),
+                        "end_time": bell.end_time.strftime("%H:%M"),
+                    }
+                )
+                if len(suggestions) >= max_n:
+                    break
+    logger.debug("调课建议: instance=%s 找到 %d 个空闲时段", instance.id[:8], len(suggestions))
+    return suggestions
 
 
 def next_version_number(db: Session, semester_id: str) -> int:

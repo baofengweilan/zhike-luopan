@@ -4,6 +4,7 @@
 
 **第五届"移动云杯"智算应用创新大赛 · AI Coding 赛参赛作品。** 作品提交截止 2026-10-15。
 
+- **演示脚本（答辩用）**：[docs/DEMO.md](docs/DEMO.md)
 - 领域术语表：[CONTEXT.md](CONTEXT.md)
 - 开发任务书：[project-spec.md](project-spec.md)（v4.1）
 - 架构决策记录：[docs/adr/](docs/adr/)
@@ -52,7 +53,7 @@ docker compose -f docker-compose.dev.yml up
 - [x] 阶段三：校历 + 模板 + 实例生成（含 2026 节假日种子）
 - [x] 阶段 3.5：AI 最小可见闭环（规则解析应用 + 课表问答，mock 适配器）
 - [x] 阶段五：实时调整 + 冲突检测 + 调整历史/回滚 + 反馈转约束
-- [ ] 阶段四：教材 + 扫码 + 照片
-- [ ] 阶段六：AI 完整能力 + 订阅提醒
-- [ ] 阶段八：ICS 导出 + 收尾（Excel 导出砍掉）
+- [x] 阶段四：教材 + 扫码 + 照片（Open Library 失败自动走手动兜底）
+- [x] 阶段六：AI 完整能力（公告解析/调课建议）+ 订阅提醒（mock 发送，域名就绪后切真实推送）
+- [x] 阶段八：ICS 导出 + 演示种子（[docs/DEMO.md](docs/DEMO.md)）+ 收尾（Excel 导出砍掉）
 - [ ] 二期：分享/批注/模板市场（取决于小程序主体升级）

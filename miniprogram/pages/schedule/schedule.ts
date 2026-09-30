@@ -12,7 +12,9 @@ import {
   listSemesters,
   rollbackAdjustment,
 } from "../../utils/api";
+import { AdjustSuggestion } from "../../utils/api";
 import { ApiError } from "../../utils/request";
+import { getToken } from "../../utils/token";
 import { logger } from "../../utils/logger";
 
 interface DayItem {
@@ -53,6 +55,7 @@ function shift(dateStr: string, days: number): string {
 Page({
   data: {
     semesterId: "",
+    baseUrl: "", // 教材封面等静态资源走后端 /uploads/
     mode: "day" as "day" | "week",
     currentDate: fmt(new Date()),
     today: fmt(new Date()),
@@ -62,6 +65,7 @@ Page({
     selected: null as DayItem["items"][number] | null,
     popupView: "detail" as PopupView,
     conflicts: [] as string[], // A14：后端 409 带回的冲突描述，渲染给用户决策
+    suggestions: [] as AdjustSuggestion[], // A21：AI 调课建议（无冲突候选时段）
     adjustForm: { new_date: "", new_period: "", new_location: "", reason: "", force: false },
     feedbackForm: { type: "", desc: "" },
     feedbackTypes: Object.entries(FEEDBACK_TYPE_LABELS).map(([value, label]) => ({ value, label })),
@@ -71,6 +75,7 @@ Page({
   },
 
   onLoad(options: { semesterId?: string }) {
+    this.setData({ baseUrl: getApp<IAppOption>().globalData.baseUrl });
     if (options.semesterId) {
       this.setData({ semesterId: options.semesterId });
       this.load();
@@ -143,6 +148,40 @@ Page({
     }
   },
 
+  /**
+   * 导出 ICS → 分享文件（A35"订阅到日历"）。
+   * ics 无法在小程序内直接打开（openDocument 不支持），可靠路径是
+   * shareFileMessage 发给文件传输助手，手机上点开即导入系统日历。
+   */
+  onExportICS() {
+    const baseUrl = getApp<IAppOption>().globalData.baseUrl;
+    wx.downloadFile({
+      url: `${baseUrl}/api/export/ics?semester_id=${this.data.semesterId}`,
+      header: { Authorization: `Bearer ${getToken() ?? ""}` },
+      success: (res) => {
+        if (res.statusCode !== 200) {
+          wx.showToast({ title: `导出失败（${res.statusCode}）`, icon: "none" });
+          return;
+        }
+        logger.info("schedule", "ICS 已下载", res.tempFilePath);
+        if (wx.shareFileMessage) {
+          wx.shareFileMessage({
+            filePath: res.tempFilePath,
+            fileName: "我的课表.ics",
+            success: () => wx.showToast({ title: "已发送，打开可导入日历", icon: "none" }),
+            fail: () => wx.showToast({ title: "已取消分享", icon: "none" }),
+          });
+        } else {
+          wx.showToast({ title: "当前微信版本不支持分享文件", icon: "none" });
+        }
+      },
+      fail: (err) => {
+        logger.error("schedule", "ICS 下载失败", err);
+        wx.showToast({ title: "下载失败", icon: "none" });
+      },
+    });
+  },
+
   async onRegenerate() {
     try {
       const r = await generateInstances(this.data.semesterId);
@@ -186,9 +225,21 @@ Page({
     this.setData({ selected: null });
   },
 
+  /** 点选一条调课建议：直接把表单填成该时段（A21 动线闭环） */
+  onPickSuggestion(e: WechatMiniprogram.Touch) {
+    const s = this.data.suggestions[Number(e.currentTarget.dataset.index)];
+    if (!s) return;
+    logger.debug("schedule", "采纳调课建议", s);
+    this.setData({
+      "adjustForm.new_date": s.date,
+      "adjustForm.new_period": String(s.period_number),
+      conflicts: [],
+    });
+  },
+
   switchView(e: WechatMiniprogram.Touch) {
     const view = e.currentTarget.dataset.view as PopupView;
-    this.setData({ popupView: view, conflicts: [] });
+    this.setData({ popupView: view, conflicts: [], suggestions: [] });
     if (view === "history") this.loadHistory();
   },
 
@@ -231,8 +282,11 @@ Page({
     } catch (err) {
       // A14：409 带回结构化冲突列表 → 渲染在弹层里；软冲突可勾"强行应用"重试
       if (err instanceof ApiError && err.statusCode === 409) {
-        const detail = err.detail as { conflicts?: string[] };
-        this.setData({ conflicts: detail?.conflicts ?? [err.message] });
+        const detail = err.detail as { conflicts?: string[]; suggestions?: AdjustSuggestion[] };
+        this.setData({
+          conflicts: detail?.conflicts ?? [err.message],
+          suggestions: detail?.suggestions ?? [],
+        });
         return;
       }
       wx.showToast({ title: (err as Error).message, icon: "none" });

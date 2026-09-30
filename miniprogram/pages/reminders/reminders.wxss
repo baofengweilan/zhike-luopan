@@ -1,0 +1,60 @@
+.gen-row {
+  display: flex;
+  gap: 20rpx;
+  margin-top: 20rpx;
+}
+
+.gen-btn {
+  flex: 1;
+  background: var(--brand-light);
+  color: var(--brand);
+  font-size: 26rpx;
+  border-radius: 12rpx;
+  padding: 8rpx 0;
+}
+
+.subscribe-btn {
+  margin-top: 20rpx;
+  background: var(--brand);
+  color: #fff;
+  font-size: 28rpx;
+  border-radius: 12rpx;
+}
+
+.r-head {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.r-type {
+  font-weight: 600;
+  flex: 1;
+}
+
+.r-status {
+  font-size: 22rpx;
+  background: #fff3e6;
+  color: #d46b08;
+  border-radius: 999rpx;
+  padding: 4rpx 16rpx;
+}
+
+.r-status.sent {
+  background: #e8f7ec;
+  color: #23a353;
+}
+
+.r-msg {
+  margin: 8rpx 0;
+}
+
+.link.danger {
+  color: var(--danger);
+  font-size: 24rpx;
+}
+
+.empty {
+  text-align: center;
+  margin-top: 100rpx;
+}

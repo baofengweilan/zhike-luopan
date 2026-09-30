@@ -21,7 +21,13 @@ from app.schemas.adjustment import (
     AdjustResult,
     RollbackResult,
 )
-from app.services.adjuster import detect_conflicts, next_version_number, record_change, snapshot
+from app.services.adjuster import (
+    detect_conflicts,
+    find_suggestions,
+    next_version_number,
+    record_change,
+    snapshot,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -76,9 +82,11 @@ def adjust_instance(
             )
         if soft and not body.force:
             logger.debug("调整被软冲突拦截: %s", soft)
+            # A21：409 里附带给调课建议（空闲时段），前端渲染"试试这些时段"
+            suggestions = find_suggestions(db, semester, instance)
             raise HTTPException(
                 status.HTTP_409_CONFLICT,
-                detail={"message": "存在冲突，可用「强行应用」越过", "conflicts": soft},
+                detail={"message": "存在冲突，可用「强行应用」越过", "conflicts": soft, "suggestions": suggestions},
             )
 
     # ---- 应用变更 ----

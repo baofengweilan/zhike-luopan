@@ -8,10 +8,6 @@ interface RequestOptions {
   redirectOn401?: boolean;
 }
 
-interface ApiError extends Error {
-  statusCode: number;
-}
-
 /** 业务错误：message 给 toast 用，detail 保留后端结构化错误体（如 409 的冲突列表） */
 export class ApiError extends Error {
   statusCode: number;

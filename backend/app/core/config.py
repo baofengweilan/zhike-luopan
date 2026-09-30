@@ -20,6 +20,12 @@ class Settings(BaseSettings):
     WX_APPID: str = ""
     WX_SECRET: str = ""
     WX_MOCK_LOGIN: bool = False  # 本地开发无密钥时置 true
+    # 订阅消息模板（两条：课前/调课、假期/时令，拷问 Q4 定稿）
+    WX_SUBSCRIBE_TEMPLATE_LESSON: str = ""
+    WX_SUBSCRIBE_TEMPLATE_HOLIDAY: str = ""
+
+    # 调度器：单元测试置 false，避免后台线程干扰 SQLite 内存库
+    SCHEDULER_ENABLED: bool = True
 
     # AI（移动云 MoMA）
     AI_BASE_URL: str = "https://moma.cmecloud.cn/v1"

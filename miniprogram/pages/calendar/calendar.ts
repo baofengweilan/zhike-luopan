@@ -5,8 +5,10 @@ import {
   createOverride,
   deleteOverride,
   listOverrides,
+  parseHoliday,
   syncHolidays,
 } from "../../utils/api";
+import { logger } from "../../utils/logger";
 
 const DAY_TYPES = ["holiday", "workday", "school_holiday", "temp_cancel"];
 
@@ -15,6 +17,10 @@ Page({
     semesterId: "",
     overrides: [] as (Override & { typeLabel: string; followLabel: string })[],
     form: { date: "", day_type: "", follow_weekday: -1, note: "" },
+    showAnnouncement: false,
+    announcement: "",
+    parsing: false,
+    parseResult: "",
     dayTypes: DAY_TYPES.map((t) => ({ value: t, label: DAY_TYPE_LABELS[t] })),
     weekdays: WEEKDAY_LABELS,
     submitting: false,
@@ -97,6 +103,39 @@ Page({
       await this.load();
     } catch (e) {
       wx.showToast({ title: (e as Error).message, icon: "none" });
+    }
+  },
+
+  // ==== AI 公告解析（A19）：粘贴放假通知 → 自动建校历覆盖 → 课表变化 ====
+
+  toggleAnnouncement() {
+    this.setData({ showAnnouncement: !this.data.showAnnouncement, parseResult: "" });
+  },
+
+  onAnnouncementInput(e: WechatMiniprogram.Input) {
+    this.setData({ announcement: e.detail.value });
+  },
+
+  async onParseAnnouncement() {
+    const text = this.data.announcement.trim();
+    if (!text) {
+      wx.showToast({ title: "请粘贴公告文本", icon: "none" });
+      return;
+    }
+    this.setData({ parsing: true, parseResult: "" });
+    try {
+      const r = await parseHoliday(this.data.semesterId, text);
+      const detail =
+        r.added.length > 0
+          ? `已添加 ${r.added.length} 天：${r.added.join("、")}，课表已重新生成`
+          : "没有解析出新的日期安排";
+      this.setData({ parseResult: detail });
+      logger.info("calendar", "公告解析完成", detail);
+      await this.load();
+    } catch (e) {
+      this.setData({ parseResult: (e as Error).message });
+    } finally {
+      this.setData({ parsing: false });
     }
   },
 

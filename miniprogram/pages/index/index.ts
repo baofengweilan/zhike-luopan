@@ -53,4 +53,16 @@ Page({
   goAI() {
     wx.navigateTo({ url: "/pages/ai/ai" });
   },
+
+  goTextbooks() {
+    wx.navigateTo({ url: "/pages/textbooks/textbooks" });
+  },
+
+  goPhotos() {
+    wx.navigateTo({ url: "/pages/photos/photos" });
+  },
+
+  goReminders() {
+    wx.navigateTo({ url: "/pages/reminders/reminders" });
+  },
 });

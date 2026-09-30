@@ -1,0 +1,24 @@
+<view class="card">
+  <view class="title">生成提醒</view>
+  <view class="gen-row">
+    <button class="gen-btn" loading="{{generating}}" bindtap="onGenerateClass">⏰ 未来 7 天课前提醒</button>
+    <button class="gen-btn" bindtap="onGenerateHoliday">🏖️ 假期提醒</button>
+  </view>
+  <view class="secondary" style="margin-top: 12rpx">
+    课前提醒提前 30 分钟触发。订阅消息额度用尽时自动降级为站内提醒。
+  </view>
+  <button wx:if="{{wxConfigured && templates.length > 0}}" class="subscribe-btn"
+    bindtap="onSubscribe">🔔 开启微信服务通知</button>
+</view>
+
+<view class="card" wx:for="{{reminders}}" wx:key="id">
+  <view class="r-head">
+    <view class="r-type">{{item.typeLabel}}</view>
+    <view class="r-status {{item.status === 'sent' ? 'sent' : ''}}">{{item.statusLabel}}</view>
+    <view class="link danger" catchtap="onDelete" data-id="{{item.id}}">删</view>
+  </view>
+  <view class="r-msg">{{item.message}}</view>
+  <view class="secondary">{{item.timeLabel}}</view>
+</view>
+
+<view class="empty secondary" wx:if="{{reminders.length === 0}}">还没有提醒，点上面按钮生成</view>

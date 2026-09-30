@@ -1,7 +1,10 @@
 <view class="card">
   <view class="row-head">
     <view class="title">校历覆盖</view>
-    <view class="link" bindtap="onSync">同步 2026 国家节假日</view>
+    <view class="row-links">
+      <view class="link" bindtap="toggleAnnouncement">AI 解析公告</view>
+      <view class="link" bindtap="onSync">同步 2026 节假日</view>
+    </view>
   </view>
 
   <view class="override" wx:for="{{overrides}}" wx:key="id">
@@ -15,6 +18,14 @@
     </view>
   </view>
   <view class="secondary" wx:if="{{overrides.length === 0}}">还没有覆盖。点右上角同步 2026 法定节假日，或手动添加。</view>
+</view>
+
+<view class="card" wx:if="{{showAnnouncement}}">
+  <view class="title">AI 解析放假公告</view>
+  <textarea class="textarea" placeholder="粘贴学校通知，如：3月8日至3月9日放假，3月10日上班"
+    value="{{announcement}}" bindinput="onAnnouncementInput" maxlength="300"></textarea>
+  <button class="btn-primary" loading="{{parsing}}" bindtap="onParseAnnouncement">解析并应用</button>
+  <view class="parse-result" wx:if="{{parseResult}}">{{parseResult}}</view>
 </view>
 
 <view class="card">

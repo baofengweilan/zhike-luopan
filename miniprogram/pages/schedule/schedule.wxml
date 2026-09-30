@@ -42,20 +42,29 @@
   </view>
 </scroll-view>
 
-<view class="regen link" bindtap="onRegenerate">↻ 按当前校历与模板重新生成课表</view>
+<view class="regen-row">
+  <view class="regen link" bindtap="onRegenerate">↻ 重新生成课表</view>
+  <view class="regen link" bindtap="onExportICS">📅 导出到日历</view>
+</view>
 
 <!-- 详情弹层（任务书 3.8 详情 + 阶段五：调整/冲突/反馈/历史） -->
 <view class="mask" wx:if="{{selected}}" bindtap="onCloseDetail">
   <view class="detail card" catchtap="">
     <view class="detail-color" style="background: {{selected.color}}"></view>
 
-    <!-- 视图 1：课程详情 -->
+    <!-- 视图 1：课程详情（含绑定教材封面，A10/A13） -->
     <block wx:if="{{popupView === 'detail'}}">
-      <view class="title">{{selected.course_name}}</view>
-      <view class="detail-row">时间：{{selected.date}} {{selected.startTime}} – {{selected.endTime}}（第 {{selected.period_number}} 节）</view>
-      <view class="detail-row" wx:if="{{selected.location}}">地点：{{selected.location}}</view>
-      <view class="detail-row" wx:if="{{selected.teacher}}">教师：{{selected.teacher}}</view>
-      <view class="detail-row" wx:if="{{selected.statusLabel}}">状态：{{selected.statusLabel}}</view>
+      <view class="detail-head">
+        <image class="detail-cover" wx:if="{{selected.textbookCover}}"
+          src="{{baseUrl}}/uploads/{{selected.textbookCover}}" mode="aspectFill"></image>
+        <view class="detail-head-text">
+          <view class="title">{{selected.course_name}}</view>
+          <view class="detail-row">时间：{{selected.date}} {{selected.startTime}} – {{selected.endTime}}（第 {{selected.period_number}} 节）</view>
+          <view class="detail-row" wx:if="{{selected.location}}">地点：{{selected.location}}</view>
+          <view class="detail-row" wx:if="{{selected.teacher}}">教师：{{selected.teacher}}</view>
+          <view class="detail-row" wx:if="{{selected.statusLabel}}">状态：{{selected.statusLabel}}</view>
+        </view>
+      </view>
       <view class="actions-row">
         <view class="action" bindtap="switchView" data-view="adjust">调整</view>
         <view class="action" bindtap="onCancelClass">取消</view>
@@ -81,6 +90,14 @@
         <view class="conflict-box" wx:if="{{conflicts.length > 0}}">
           <view class="conflict-title">存在冲突：</view>
           <view class="conflict-item" wx:for="{{conflicts}}" wx:key="*this">· {{item}}</view>
+          <!-- A21：AI 调课建议——点一条直接填进表单 -->
+          <view wx:if="{{suggestions.length > 0}}" class="sug-box">
+            <view class="sug-title">试试这些空闲时段：</view>
+            <view class="sug-item" wx:for="{{suggestions}}" wx:key="date"
+              bindtap="onPickSuggestion" data-index="{{index}}">
+              {{item.date}} 第{{item.period_number}}节（{{item.start_time}}–{{item.end_time}}）
+            </view>
+          </view>
           <view class="force-toggle" bindtap="onForceToggle">
             {{adjustForm.force ? "☑" : "☐"}} 强行应用（保留记录）
           </view>

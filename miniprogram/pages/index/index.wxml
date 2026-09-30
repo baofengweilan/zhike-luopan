@@ -22,3 +22,9 @@
   <view class="secondary" style="margin-top: 8rpx">一句话调课 · 课表问答 · 假期提醒</view>
   <button class="btn-primary" style="margin-top: 24rpx" bindtap="goAI" disabled="{{!hasActiveSemester}}">开始对话</button>
 </view>
+
+<view class="quick-row">
+  <view class="quick" bindtap="goTextbooks">📚 我的教材</view>
+  <view class="quick" bindtap="goPhotos">📷 教室相册</view>
+  <view class="quick" bindtap="goReminders">⏰ 提醒</view>
+</view>

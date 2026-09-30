@@ -1,3 +1,8 @@
+import os
+
+# 单测关掉后台调度器：避免 APScheduler 线程干扰 SQLite 内存库
+os.environ["SCHEDULER_ENABLED"] = "false"
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine

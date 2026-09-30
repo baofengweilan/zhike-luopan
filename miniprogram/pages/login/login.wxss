@@ -1,0 +1,27 @@
+.login-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 160rpx 64rpx 0;
+}
+
+.brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 120rpx;
+}
+
+.logo {
+  font-size: 120rpx;
+  margin-bottom: 24rpx;
+}
+
+.agreement {
+  margin-top: 32rpx;
+  text-align: center;
+}
+
+.login-btn {
+  width: 100%;
+}

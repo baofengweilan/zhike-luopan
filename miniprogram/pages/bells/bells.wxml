@@ -1,0 +1,34 @@
+<!-- 任务书 2.5：作息时间轴预览 -->
+<view class="card">
+  <view class="title">时间轴</view>
+  <view class="timeline" wx:if="{{timeline.length > 0}}">
+    <view class="row {{item.is_break ? 'break' : ''}}" wx:for="{{timeline}}" wx:key="id">
+      <view class="node"></view>
+      <view class="label">{{item.label}}</view>
+      <view class="time">{{item.startTime}} – {{item.endTime}}</view>
+      <view class="link danger" catchtap="onDelete" data-id="{{item.id}}">删</view>
+    </view>
+  </view>
+  <view class="secondary" wx:else>还没有节次，从下面添加第 1 节开始</view>
+</view>
+
+<view class="card">
+  <view class="title">添加节次</view>
+  <view class="form">
+    <input class="input" type="number" placeholder="节次序号（如 1）"
+      value="{{form.period_number}}" data-field="period_number" bindinput="onField" />
+    <view class="time-row">
+      <picker mode="time" value="{{form.start_time}}" data-field="start_time" bindchange="onTime">
+        <view class="input">开始 {{form.start_time}}</view>
+      </picker>
+      <picker mode="time" value="{{form.end_time}}" data-field="end_time" bindchange="onTime">
+        <view class="input">结束 {{form.end_time}}</view>
+      </picker>
+    </view>
+    <view class="break-toggle" bindtap="onBreakToggle">
+      <view class="check {{form.is_break ? 'on' : ''}}">{{form.is_break ? "☑" : "☐"}}</view>
+      <view>这是课间休息（不算课）</view>
+    </view>
+    <button class="btn-primary" loading="{{submitting}}" bindtap="onSubmit">添加</button>
+  </view>
+</view>

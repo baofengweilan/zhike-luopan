@@ -1,0 +1,99 @@
+.scan-row {
+  display: flex;
+  gap: 20rpx;
+  padding: 24rpx;
+}
+
+.scan-btn {
+  flex: 1;
+  background: var(--brand);
+  color: #fff;
+  border-radius: 16rpx;
+  font-size: 30rpx;
+}
+
+.secondary-btn {
+  background: var(--card);
+  color: var(--brand);
+}
+
+.book {
+  display: flex;
+  gap: 24rpx;
+}
+
+.cover {
+  width: 120rpx;
+  height: 160rpx;
+  border-radius: 8rpx;
+  flex-shrink: 0;
+}
+
+.cover-empty {
+  background: var(--bg);
+  color: var(--text-secondary);
+  font-size: 22rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.book-info {
+  flex: 1;
+}
+
+.book-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  margin-bottom: 8rpx;
+}
+
+.book-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 32rpx;
+  margin-top: 16rpx;
+}
+
+.link {
+  color: var(--brand);
+  font-size: 26rpx;
+}
+
+.link.danger {
+  color: var(--danger);
+}
+
+.link.cancel {
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.form {
+  margin-top: 20rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 18rpx;
+}
+
+.input {
+  background: var(--bg);
+  border-radius: 12rpx;
+  padding: 20rpx 24rpx;
+}
+
+.empty {
+  text-align: center;
+  margin-top: 100rpx;
+}
+
+.fab {
+  position: fixed;
+  right: 32rpx;
+  bottom: 60rpx;
+  background: var(--card);
+  color: var(--brand);
+  border-radius: 999rpx;
+  padding: 20rpx 36rpx;
+  box-shadow: 0 4rpx 16rpx rgba(31, 35, 41, 0.15);
+}

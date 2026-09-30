@@ -1,0 +1,65 @@
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24rpx 24rpx 0;
+}
+
+.head-hint {
+  padding: 8rpx 24rpx 16rpx;
+}
+
+.up-btn {
+  background: var(--brand);
+  color: #fff;
+  font-size: 26rpx;
+  padding: 0 28rpx;
+  line-height: 64rpx;
+  border-radius: 12rpx;
+}
+
+.grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20rpx;
+  padding: 16rpx 24rpx;
+}
+
+.cell {
+  width: calc(50% - 10rpx);
+  position: relative;
+}
+
+.img {
+  width: 100%;
+  height: 240rpx;
+  border-radius: 16rpx;
+}
+
+.cell-name {
+  font-size: 24rpx;
+  margin-top: 8rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cell-del {
+  position: absolute;
+  top: 8rpx;
+  right: 8rpx;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  border-radius: 999rpx;
+  font-size: 22rpx;
+  padding: 4rpx 16rpx;
+}
+
+.link {
+  color: #fff;
+}
+
+.empty {
+  text-align: center;
+  margin-top: 100rpx;
+}

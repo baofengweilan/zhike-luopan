@@ -1,0 +1,16 @@
+{
+  "name": "zhike-luopan-miniprogram",
+  "version": "0.1.0",
+  "private": true,
+  "description": "智课罗盘小程序端（原生 + TypeScript）",
+  "scripts": {
+    "tsc": "tsc --noEmit"
+  },
+  "dependencies": {
+    "mobx-miniprogram": "^6.12.0"
+  },
+  "devDependencies": {
+    "miniprogram-api-typings": "^4.0.0",
+    "typescript": "^5.5.0"
+  }
+}

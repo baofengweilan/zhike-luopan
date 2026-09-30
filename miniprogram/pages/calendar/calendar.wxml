@@ -1,0 +1,35 @@
+<view class="card">
+  <view class="row-head">
+    <view class="title">校历覆盖</view>
+    <view class="link" bindtap="onSync">同步 2026 国家节假日</view>
+  </view>
+
+  <view class="override" wx:for="{{overrides}}" wx:key="id">
+    <view class="o-head">
+      <view class="o-date">{{item.date}}</view>
+      <view class="o-type {{item.day_type === 'workday' ? 'work' : 'off'}}">{{item.typeLabel}}</view>
+      <view class="link danger" catchtap="onDelete" data-id="{{item.id}}">删</view>
+    </view>
+    <view class="secondary" wx:if="{{item.followLabel || item.note}}">
+      {{item.followLabel}} {{item.note}}
+    </view>
+  </view>
+  <view class="secondary" wx:if="{{overrides.length === 0}}">还没有覆盖。点右上角同步 2026 法定节假日，或手动添加。</view>
+</view>
+
+<view class="card">
+  <view class="title">添加覆盖</view>
+  <view class="form">
+    <picker mode="date" value="{{form.date}}" bindchange="onDate">
+      <view class="input">日期：{{form.date || "选择日期"}}</view>
+    </picker>
+    <picker mode="selector" range="{{dayTypes}}" range-key="label" bindchange="onType">
+      <view class="input">类型：{{form.day_type || "选择类型"}}</view>
+    </picker>
+    <picker wx:if="{{form.day_type === 'workday'}}" mode="selector" range="{{weekdays}}" bindchange="onFollow">
+      <view class="input">{{form.follow_weekday >= 0 ? "按" + weekdays[form.follow_weekday] + "课表上课" : "按周几的课表执行"}}</view>
+    </picker>
+    <input class="input" placeholder="备注（可选）" value="{{form.note}}" bindinput="onNote" />
+    <button class="btn-primary" loading="{{submitting}}" bindtap="onSubmit">添加覆盖</button>
+  </view>
+</view>

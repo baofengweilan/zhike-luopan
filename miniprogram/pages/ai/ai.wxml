@@ -1,0 +1,21 @@
+<scroll-view scroll-y class="chat" scroll-into-view="{{scrollInto}}">
+  <view wx:for="{{messages}}" wx:key="index" id="msg-{{index}}"
+    class="bubble-row {{item.role === 'user' ? 'me' : ''}}">
+    <view class="bubble {{item.role === 'user' ? 'me' : item.role === 'link' ? 'link' : ''}}"
+      bindtap="{{item.role === 'link' ? 'goSchedule' : ''}}">
+      {{item.text}}
+    </view>
+  </view>
+</scroll-view>
+
+<view class="chips">
+  <view class="chip" wx:for="{{quickPrompts}}" wx:key="*this" bindtap="onQuick" data-text="{{item}}">
+    {{item}}
+  </view>
+</view>
+
+<view class="input-bar">
+  <input class="input" placeholder="问课表，或直接说怎么调课" value="{{input}}"
+    confirm-type="send" bindinput="onInput" bindconfirm="onSend" />
+  <button class="send-btn" loading="{{sending}}" bindtap="onSend">发送</button>
+</view>

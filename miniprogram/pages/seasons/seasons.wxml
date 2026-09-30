@@ -1,0 +1,29 @@
+<view class="card" wx:for="{{seasons}}" wx:key="id">
+  <view class="row-head" bindtap="goBells" data-id="{{item.id}}" data-name="{{item.name}}">
+    <view class="name">{{item.name}}</view>
+    <view class="secondary">{{item.start_date}} ~ {{item.end_date}}</view>
+  </view>
+  <view class="row-foot">
+    <view class="secondary">点击配置该时令的节次时间 →</view>
+    <view class="link danger" catchtap="onDelete" data-id="{{item.id}}">删除</view>
+  </view>
+</view>
+
+<view class="card" wx:if="{{remaining.length > 0}}">
+  <view class="title">新增时令</view>
+  <view class="form">
+    <picker mode="selector" range="{{remaining}}" range-key="label" bindchange="onName">
+      <view class="input">{{form.name || "选择时令（春/夏/秋/冬）"}}</view>
+    </picker>
+    <picker mode="date" value="{{form.start_date}}" data-field="start_date" bindchange="onDate">
+      <view class="input">开始：{{form.start_date || "选择日期"}}</view>
+    </picker>
+    <picker mode="date" value="{{form.end_date}}" data-field="end_date" bindchange="onDate" start="{{form.start_date}}">
+      <view class="input">结束：{{form.end_date || "选择日期"}}</view>
+    </picker>
+    <view class="secondary">时令日期不能与已有时令重叠，且须落在学期范围内</view>
+    <button class="btn-primary" loading="{{submitting}}" bindtap="onSubmit">创建时令</button>
+  </view>
+</view>
+
+<view class="empty secondary" wx:if="{{seasons.length === 0 && remaining.length === 0}}">四季时令已配置完毕</view>

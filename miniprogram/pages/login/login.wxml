@@ -1,0 +1,11 @@
+<view class="login-page">
+  <view class="brand">
+    <view class="logo">🧭</view>
+    <view class="title">智课罗盘</view>
+    <view class="secondary">时令作息 · 节假日调休 · 单双周，一张真正可执行的每日时间表</view>
+  </view>
+  <button class="btn-primary login-btn" loading="{{loading}}" bindtap="onLogin">
+    微信一键登录
+  </button>
+  <view class="secondary agreement">登录即代表同意《用户协议》与《隐私政策》</view>
+</view>

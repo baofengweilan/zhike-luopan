@@ -1,0 +1,16 @@
+<view class="head">
+  <view class="title">教室相册</view>
+  <button class="up-btn" loading="{{saving}}" bindtap="onUpload">📷 拍照上传</button>
+</view>
+<view class="secondary head-hint">提前认教室、认楼：拍到哪间教室就传哪间，开学不迷路</view>
+
+<view class="grid">
+  <view class="cell" wx:for="{{photos}}" wx:key="id">
+    <image class="img" src="{{baseUrl}}/uploads/{{item.photo_path}}" mode="aspectFill"
+      data-url="{{baseUrl}}/uploads/{{item.photo_path}}" bindtap="onPreview"></image>
+    <view class="cell-name">{{item.location_name}}</view>
+    <view class="cell-del link" catchtap="onDelete" data-id="{{item.id}}">删</view>
+  </view>
+</view>
+
+<view class="empty secondary" wx:if="{{photos.length === 0}}">还没有照片，拍一张你的教室吧</view>

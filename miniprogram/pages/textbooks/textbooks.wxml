@@ -1,0 +1,40 @@
+<view class="scan-row">
+  <button class="scan-btn" bindtap="onScan">📷 扫码录书</button>
+  <button class="scan-btn secondary-btn" bindtap="onBatchScan">📚 连续扫码</button>
+</view>
+
+<view class="card" wx:for="{{books}}" wx:key="id">
+  <view class="book">
+    <image class="cover" src="{{item.cover_local_path ? baseUrl + '/uploads/' + item.cover_local_path : ''}}"
+      mode="aspectFill" wx:if="{{item.cover_local_path}}"></image>
+    <view class="cover cover-empty" wx:else>无封面</view>
+    <view class="book-info">
+      <view class="book-title">{{item.title}}</view>
+      <view class="secondary">{{item.author || "佚名"}}{{item.publisher ? " · " + item.publisher : ""}}</view>
+      <view class="secondary" wx:if="{{item.isbn}}">ISBN: {{item.isbn}}</view>
+    </view>
+  </view>
+  <view class="book-actions">
+    <picker wx:if="{{bindTarget === item.id}}" mode="selector" range="{{templates}}" range-key="course_name" bindchange="onBindPick">
+      <view class="link">选择课程…</view>
+    </picker>
+    <view class="link" wx:else bindtap="onBind" data-id="{{item.id}}">绑定到课程</view>
+    <view class="link danger" catchtap="onDelete" data-id="{{item.id}}">删除</view>
+  </view>
+</view>
+
+<view class="empty secondary" wx:if="{{books.length === 0}}">书架空空的，扫一本教材的背面条码试试</view>
+
+<view class="card" wx:if="{{showManual}}">
+  <view class="title">手动录入</view>
+  <view class="form">
+    <input class="input" placeholder="ISBN（可选）" value="{{manual.isbn}}" data-field="isbn" bindinput="onManualField" />
+    <input class="input" placeholder="书名（必填）" value="{{manual.title}}" data-field="title" bindinput="onManualField" />
+    <input class="input" placeholder="作者（可选）" value="{{manual.author}}" data-field="author" bindinput="onManualField" />
+    <input class="input" placeholder="出版社（可选）" value="{{manual.publisher}}" data-field="publisher" bindinput="onManualField" />
+    <button class="btn-primary" loading="{{submitting}}" bindtap="onManualSubmit">保存并拍封面</button>
+    <view class="link cancel" bindtap="toggleManual">取消</view>
+  </view>
+</view>
+
+<view class="fab link" bindtap="toggleManual">+ 手动录入</view>

@@ -1,0 +1,130 @@
+<view class="toolbar">
+  <view class="nav" bindtap="onPrev">‹</view>
+  <view class="date-btn" bindtap="onToday">
+    {{currentDate}}{{currentDate === today ? " · 今日" : ""}}
+  </view>
+  <view class="nav" bindtap="onNext">›</view>
+  <view class="seg">
+    <view class="seg-item {{mode === 'day' ? 'on' : ''}}" bindtap="setMode" data-mode="day">日</view>
+    <view class="seg-item {{mode === 'week' ? 'on' : ''}}" bindtap="setMode" data-mode="week">周</view>
+  </view>
+</view>
+
+<!-- 日视图：今日列表（ScheduleView 主视图） -->
+<view wx:if="{{mode === 'day'}}">
+  <view class="lesson" wx:for="{{dayItems}}" wx:key="id" bindtap="onShowDetail" data-id="{{item.id}}">
+    <view class="period" style="background: {{item.color}}">{{item.period_number}}</view>
+    <view class="lesson-main">
+      <view class="course">
+        {{item.course_name}}
+        <text class="status" wx:if="{{item.statusLabel}}">{{item.statusLabel}}</text>
+      </view>
+      <view class="secondary">{{item.startTime}} – {{item.endTime}}{{item.location ? " · " + item.location : ""}}{{item.teacher ? " · " + item.teacher : ""}}</view>
+    </view>
+  </view>
+  <view class="empty secondary" wx:if="{{dayItems.length === 0}}">这一天没有课</view>
+</view>
+
+<!-- 周视图：横向滚动的 7 列日卡片 -->
+<scroll-view scroll-x class="week-scroll" wx:if="{{mode === 'week'}}" enhanced show-scrollbar="{{false}}">
+  <view class="week-row">
+    <view class="day-col {{item.isToday ? 'today' : ''}}" wx:for="{{week}}" wx:key="date"
+      bindtap="onPickDay" data-date="{{item.date}}">
+      <view class="day-head">{{item.weekdayLabel}} {{item.dayLabel}}</view>
+      <view class="mini" wx:for="{{item.items}}" wx:for-item="les" wx:key="id"
+        style="border-left: 6rpx solid {{les.color}}"
+        catchtap="onShowDetail" data-id="{{les.id}}">
+        <view class="mini-course">{{les.course_name}}</view>
+        <view class="mini-time">{{les.startTime}} 第{{les.period_number}}节</view>
+      </view>
+      <view class="secondary mini-empty" wx:if="{{item.items.length === 0}}">—</view>
+    </view>
+  </view>
+</scroll-view>
+
+<view class="regen link" bindtap="onRegenerate">↻ 按当前校历与模板重新生成课表</view>
+
+<!-- 详情弹层（任务书 3.8 详情 + 阶段五：调整/冲突/反馈/历史） -->
+<view class="mask" wx:if="{{selected}}" bindtap="onCloseDetail">
+  <view class="detail card" catchtap="">
+    <view class="detail-color" style="background: {{selected.color}}"></view>
+
+    <!-- 视图 1：课程详情 -->
+    <block wx:if="{{popupView === 'detail'}}">
+      <view class="title">{{selected.course_name}}</view>
+      <view class="detail-row">时间：{{selected.date}} {{selected.startTime}} – {{selected.endTime}}（第 {{selected.period_number}} 节）</view>
+      <view class="detail-row" wx:if="{{selected.location}}">地点：{{selected.location}}</view>
+      <view class="detail-row" wx:if="{{selected.teacher}}">教师：{{selected.teacher}}</view>
+      <view class="detail-row" wx:if="{{selected.statusLabel}}">状态：{{selected.statusLabel}}</view>
+      <view class="actions-row">
+        <view class="action" bindtap="switchView" data-view="adjust">调整</view>
+        <view class="action" bindtap="onCancelClass">取消</view>
+        <view class="action" bindtap="switchView" data-view="feedback">反馈</view>
+        <view class="action" bindtap="switchView" data-view="history">历史</view>
+      </view>
+    </block>
+
+    <!-- 视图 2：调整表单（A14） -->
+    <block wx:if="{{popupView === 'adjust'}}">
+      <view class="title">调整课程</view>
+      <view class="popup-form">
+        <picker mode="date" value="{{adjustForm.new_date}}" bindchange="onAdjustDate">
+          <view class="input">日期：{{adjustForm.new_date}}</view>
+        </picker>
+        <input class="input" type="number" placeholder="调到第几节（不改留空）"
+          value="{{adjustForm.new_period}}" data-field="new_period" bindinput="onAdjustField" />
+        <input class="input" placeholder="新地点（可选）"
+          value="{{adjustForm.new_location}}" data-field="new_location" bindinput="onAdjustField" />
+        <input class="input" placeholder="调整原因（可选）"
+          value="{{adjustForm.reason}}" data-field="reason" bindinput="onAdjustField" />
+        <!-- A14 冲突提示：后端 409 返回的逐条冲突描述 -->
+        <view class="conflict-box" wx:if="{{conflicts.length > 0}}">
+          <view class="conflict-title">存在冲突：</view>
+          <view class="conflict-item" wx:for="{{conflicts}}" wx:key="*this">· {{item}}</view>
+          <view class="force-toggle" bindtap="onForceToggle">
+            {{adjustForm.force ? "☑" : "☐"}} 强行应用（保留记录）
+          </view>
+        </view>
+        <button class="btn-primary" bindtap="onAdjustSubmit">应用调整</button>
+        <view class="back-link" bindtap="switchView" data-view="detail">返回详情</view>
+      </view>
+    </block>
+
+    <!-- 视图 3：反馈表单（A23） -->
+    <block wx:if="{{popupView === 'feedback'}}">
+      <view class="title">反馈纠错</view>
+      <view class="popup-form">
+        <picker mode="selector" range="{{feedbackTypes}}" range-key="label" bindchange="onFeedbackType">
+          <view class="input">类型：{{feedbackForm.type || "选择问题类型"}}</view>
+        </picker>
+        <textarea class="input textarea" placeholder="描述问题，如：10月10日不该上课 / 周一下午不该排数学"
+          value="{{feedbackForm.desc}}" bindinput="onFeedbackDesc" maxlength="200" />
+        <button class="btn-primary" bindtap="onFeedbackSubmit">提交反馈</button>
+        <view class="back-link" bindtap="switchView" data-view="detail">返回详情</view>
+      </view>
+    </block>
+
+    <!-- 视图 4：反馈已提交，一键转约束 -->
+    <block wx:if="{{popupView === 'feedbackDone'}}">
+      <view class="title">反馈已提交</view>
+      <view class="detail-row">可以让系统把这条反馈转成排课约束，以后生成课表时自动遵守。</view>
+      <view class="feedback-result" wx:if="{{feedbackResult}}">{{feedbackResult}}</view>
+      <button class="btn-primary" bindtap="onFeedbackToConstraint">转为排课约束</button>
+      <view class="back-link" bindtap="onCloseDetail">完成</view>
+    </block>
+
+    <!-- 视图 5：调整历史 + 回滚（A15） -->
+    <block wx:if="{{popupView === 'history'}}">
+      <view class="title">调整历史</view>
+      <view class="history-item" wx:for="{{history}}" wx:key="id">
+        <view class="h-summary">
+          {{item.old_value.date}} 第{{item.old_value.period_number}}节 → {{item.new_value.date}} 第{{item.new_value.period_number}}节
+        </view>
+        <view class="secondary" wx:if="{{item.reason}}">{{item.reason}}</view>
+        <view class="link danger" catchtap="onRollback" data-id="{{item.id}}">回滚</view>
+      </view>
+      <view class="secondary" wx:if="{{history.length === 0}}">这节课还没有调整记录</view>
+      <view class="back-link" bindtap="switchView" data-view="detail">返回详情</view>
+    </block>
+  </view>
+</view>

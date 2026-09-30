@@ -1,0 +1,21 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/login/login",
+    "pages/semesters/semesters",
+    "pages/seasons/seasons",
+    "pages/bells/bells",
+    "pages/calendar/calendar",
+    "pages/templates/templates",
+    "pages/schedule/schedule",
+    "pages/ai/ai"
+  ],
+  "window": {
+    "navigationBarBackgroundColor": "#2f6fed",
+    "navigationBarTitleText": "智课罗盘",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#f5f6fa"
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

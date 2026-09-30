@@ -1,0 +1,46 @@
+/** 全局主题：智课罗盘 */
+page {
+  --brand: #2f6fed;
+  --brand-light: #e8f0fe;
+  --text: #1f2329;
+  --text-secondary: #86909c;
+  --bg: #f5f6fa;
+  --card: #ffffff;
+  --danger: #f53f3f;
+
+  background: var(--bg);
+  color: var(--text);
+  font-size: 28rpx;
+  font-family: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+}
+
+.card {
+  background: var(--card);
+  border-radius: 20rpx;
+  padding: 32rpx;
+  margin: 24rpx;
+  box-shadow: 0 2rpx 12rpx rgba(31, 35, 41, 0.06);
+}
+
+.btn-primary {
+  background: var(--brand);
+  color: #fff;
+  border-radius: 16rpx;
+  font-size: 32rpx;
+  padding: 24rpx 0;
+  text-align: center;
+}
+
+.btn-primary[disabled] {
+  opacity: 0.5;
+}
+
+.title {
+  font-size: 40rpx;
+  font-weight: 600;
+}
+
+.secondary {
+  color: var(--text-secondary);
+  font-size: 24rpx;
+}

@@ -1,0 +1,58 @@
+.row-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.link {
+  color: var(--brand);
+  font-size: 26rpx;
+}
+
+.link.danger {
+  color: var(--danger);
+}
+
+.override {
+  padding: 20rpx 0;
+  border-bottom: 1rpx solid var(--bg);
+}
+
+.o-head {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.o-date {
+  font-weight: 600;
+}
+
+.o-type {
+  font-size: 22rpx;
+  padding: 4rpx 16rpx;
+  border-radius: 999rpx;
+}
+
+.o-type.off {
+  background: var(--brand-light);
+  color: var(--brand);
+}
+
+.o-type.work {
+  background: #fff3e6;
+  color: #d46b08;
+}
+
+.form {
+  margin-top: 24rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+}
+
+.input {
+  background: var(--bg);
+  border-radius: 12rpx;
+  padding: 20rpx 24rpx;
+}

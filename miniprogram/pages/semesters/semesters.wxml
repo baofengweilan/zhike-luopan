@@ -1,0 +1,39 @@
+<view class="card">
+  <view class="row-head">
+    <view class="title">我的学期</view>
+    <view class="link" bindtap="toggleForm">{{showForm ? "收起" : "+ 新建"}}</view>
+  </view>
+
+  <view wx:if="{{showForm}}" class="form">
+    <input class="input" placeholder="学期名称，如 2026 春季学期"
+      value="{{form.name}}" data-field="name" bindinput="onField" />
+    <picker mode="date" value="{{form.start_date}}" data-field="start_date" bindchange="onDate">
+      <view class="input">开始：{{form.start_date || "选择日期"}}</view>
+    </picker>
+    <picker mode="date" value="{{form.end_date}}" data-field="end_date" bindchange="onDate" start="{{form.start_date}}">
+      <view class="input">结束：{{form.end_date || "选择日期"}}</view>
+    </picker>
+    <input class="input" type="number" placeholder="总周数"
+      value="{{form.total_weeks}}" data-field="total_weeks" bindinput="onField" />
+    <view class="secondary hint">提示：建议开始日选周一，单双周计算更直观</view>
+    <button class="btn-primary" loading="{{submitting}}" bindtap="onSubmit">创建学期</button>
+  </view>
+</view>
+
+<view class="card semester {{item.is_active ? 'active' : ''}}" wx:for="{{semesters}}" wx:key="id">
+  <view class="row-head" bindtap="goSchedule" data-id="{{item.id}}">
+    <view class="name">{{item.name}}</view>
+    <view class="badge" wx:if="{{item.is_active}}">当前</view>
+  </view>
+  <view class="secondary">{{item.start_date}} ~ {{item.end_date}} · 共 {{item.total_weeks}} 周</view>
+  <view class="actions">
+    <view class="link" bindtap="goSeasons" data-id="{{item.id}}">时令作息</view>
+    <view class="link" bindtap="goCalendar" data-id="{{item.id}}">校历</view>
+    <view class="link" bindtap="goTemplates" data-id="{{item.id}}">课表模板</view>
+    <view class="link" bindtap="goSchedule" data-id="{{item.id}}">我的课表</view>
+    <view class="link" wx:if="{{!item.is_active}}" catchtap="onActivate" data-id="{{item.id}}">设为当前</view>
+    <view class="link danger" catchtap="onDelete" data-id="{{item.id}}">删除</view>
+  </view>
+</view>
+
+<view class="empty secondary" wx:if="{{semesters.length === 0}}">还没有学期，点右上角"新建"开始</view>

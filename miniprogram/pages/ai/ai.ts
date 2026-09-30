@@ -1,0 +1,96 @@
+import { aiAsk, aiParseRule, listSemesters } from "../../utils/api";
+import { logger } from "../../utils/logger";
+
+interface ChatMsg {
+  role: "user" | "ai" | "link";
+  text: string;
+}
+
+const QUICK_PROMPTS = ["明天有什么课？", "最近什么时候放假？", "把周一第3节数学改到第5节"];
+
+/** 疑似调课指令 → 走 parse-rule；否则走问答 */
+function looksLikeRule(text: string): boolean {
+  return /第.{1,3}节|周[一二三四五六日天]/.test(text) && /(改|换|调|挪|加|添加|删|去掉|取消)/.test(text);
+}
+
+Page({
+  data: {
+    messages: [
+      {
+        role: "ai",
+        text: "你好！我是课表助手。可以问我课表问题，也可以直接用一句话调课。",
+      },
+    ] as ChatMsg[],
+    quickPrompts: QUICK_PROMPTS,
+    input: "",
+    sending: false,
+    scrollInto: "",
+    semesterId: "",
+  },
+
+  onLoad() {
+    listSemesters()
+      .then((semesters) => {
+        const active = semesters.find((s) => s.is_active);
+        if (!active) {
+          this.pushAi("还没有当前学期。先去「学期管理」创建一个，再来找我调课。");
+          return;
+        }
+        this.setData({ semesterId: active.id });
+      })
+      .catch((e) => this.pushAi((e as Error).message));
+  },
+
+  pushAi(text: string) {
+    const messages = this.data.messages.concat({ role: "ai", text } as ChatMsg);
+    this.setData({ messages, scrollInto: `msg-${messages.length - 1}` });
+  },
+
+  onInput(e: WechatMiniprogram.Input) {
+    this.setData({ input: e.detail.value });
+  },
+
+  onQuick(e: WechatMiniprogram.Touch) {
+    this.send(e.currentTarget.dataset.text);
+  },
+
+  onSend() {
+    this.send(this.data.input);
+  },
+
+  async send(raw: string) {
+    const text = (raw ?? "").trim();
+    if (!text || this.data.sending) return;
+    if (!this.data.semesterId) {
+      wx.showToast({ title: "请先创建当前学期", icon: "none" });
+      return;
+    }
+    const messages = this.data.messages.concat({ role: "user", text } as ChatMsg);
+    this.setData({ messages, input: "", sending: true, scrollInto: `msg-${messages.length - 1}` });
+    try {
+      const asRule = looksLikeRule(text);
+      logger.debug("ai", `收到消息（${asRule ? "调课指令" : "问答"}）：${text}`);
+      if (asRule) {
+        const result = await aiParseRule(this.data.semesterId, text);
+        logger.debug("ai", "parse-rule 结果：", result);
+        const messages2 = this.data.messages.concat({ role: "ai", text: result.message } as ChatMsg);
+        if (result.applied) {
+          messages2.push({ role: "link", text: "课表已更新，点这里查看 →" } as ChatMsg);
+        }
+        this.setData({ messages: messages2, scrollInto: `msg-${messages2.length - 1}` });
+      } else {
+        const { answer } = await aiAsk(this.data.semesterId, text);
+        this.pushAi(answer);
+      }
+    } catch (e) {
+      logger.error("ai", "请求失败：", e);
+      this.pushAi(`出错了：${(e as Error).message}`);
+    } finally {
+      this.setData({ sending: false });
+    }
+  },
+
+  goSchedule() {
+    wx.navigateTo({ url: `/pages/schedule/schedule?semesterId=${this.data.semesterId}` });
+  },
+});

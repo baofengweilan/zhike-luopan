@@ -1,0 +1,265 @@
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  padding: 20rpx 24rpx;
+}
+
+.nav {
+  width: 64rpx;
+  height: 64rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--card);
+  border-radius: 12rpx;
+  font-size: 36rpx;
+}
+
+.date-btn {
+  flex: 1;
+  background: var(--card);
+  border-radius: 12rpx;
+  padding: 14rpx 24rpx;
+  text-align: center;
+  font-weight: 600;
+}
+
+.seg {
+  display: flex;
+  background: var(--card);
+  border-radius: 12rpx;
+  overflow: hidden;
+}
+
+.seg-item {
+  padding: 14rpx 28rpx;
+  font-size: 26rpx;
+  color: var(--text-secondary);
+}
+
+.seg-item.on {
+  background: var(--brand);
+  color: #fff;
+}
+
+.lesson {
+  display: flex;
+  align-items: center;
+  gap: 24rpx;
+  background: var(--card);
+  border-radius: 20rpx;
+  padding: 28rpx 32rpx;
+  margin: 20rpx 24rpx;
+}
+
+.period {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 16rpx;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 34rpx;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.lesson-main {
+  flex: 1;
+}
+
+.course {
+  font-size: 32rpx;
+  font-weight: 600;
+}
+
+.status {
+  font-size: 22rpx;
+  color: #d46b08;
+  background: #fff3e6;
+  border-radius: 999rpx;
+  padding: 2rpx 12rpx;
+  margin-left: 12rpx;
+  font-weight: 400;
+}
+
+.week-scroll {
+  white-space: nowrap;
+  padding: 0 24rpx;
+}
+
+.week-row {
+  display: inline-flex;
+  gap: 16rpx;
+  padding-bottom: 16rpx;
+}
+
+.day-col {
+  width: 300rpx;
+  background: var(--card);
+  border-radius: 16rpx;
+  padding: 16rpx;
+  display: inline-block;
+  vertical-align: top;
+  white-space: normal;
+}
+
+.day-col.today {
+  border: 2rpx solid var(--brand);
+}
+
+.day-head {
+  font-size: 24rpx;
+  font-weight: 600;
+  margin-bottom: 12rpx;
+  color: var(--text);
+}
+
+.mini {
+  background: var(--bg);
+  border-radius: 10rpx;
+  padding: 12rpx 16rpx;
+  margin-bottom: 10rpx;
+}
+
+.mini-course {
+  font-size: 24rpx;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mini-time {
+  font-size: 20rpx;
+  color: var(--text-secondary);
+}
+
+.mini-empty {
+  text-align: center;
+}
+
+.regen {
+  text-align: center;
+  margin-top: 24rpx;
+  color: var(--brand);
+  font-size: 26rpx;
+}
+
+.empty {
+  text-align: center;
+  margin-top: 120rpx;
+}
+
+.mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.detail {
+  width: 600rpx;
+  position: relative;
+  overflow: hidden;
+}
+
+.detail-color {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 10rpx;
+}
+
+.detail-row {
+  margin: 16rpx 0;
+}
+
+/* ==== 阶段五：弹层多视图样式 ==== */
+.actions-row {
+  display: flex;
+  gap: 20rpx;
+  margin-top: 24rpx;
+}
+
+.action {
+  flex: 1;
+  text-align: center;
+  background: var(--brand-light);
+  color: var(--brand);
+  border-radius: 12rpx;
+  padding: 16rpx 0;
+  font-size: 26rpx;
+}
+
+.popup-form {
+  margin-top: 20rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 18rpx;
+}
+
+.textarea {
+  height: 140rpx;
+  padding-top: 18rpx;
+}
+
+.conflict-box {
+  background: #fff3e6;
+  border-radius: 12rpx;
+  padding: 20rpx;
+}
+
+.conflict-title {
+  color: #d46b08;
+  font-weight: 600;
+  font-size: 26rpx;
+}
+
+.conflict-item {
+  color: #d46b08;
+  font-size: 24rpx;
+  margin-top: 8rpx;
+}
+
+.force-toggle {
+  margin-top: 14rpx;
+  font-size: 26rpx;
+  color: var(--text);
+}
+
+.back-link {
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 26rpx;
+  padding: 8rpx;
+}
+
+.feedback-result {
+  color: var(--brand);
+  font-weight: 600;
+  margin: 16rpx 0;
+}
+
+.history-item {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  padding: 16rpx 0;
+  border-bottom: 1rpx solid var(--bg);
+}
+
+.h-summary {
+  flex: 1;
+  font-size: 26rpx;
+}
+
+.link.danger {
+  color: var(--danger);
+  font-size: 26rpx;
+}

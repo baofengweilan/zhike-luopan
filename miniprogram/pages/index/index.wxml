@@ -1,0 +1,24 @@
+<view class="card" wx:if="{{me}}">
+  <view class="title">{{me.nickname || "微信用户"}}</view>
+  <view class="secondary">时区：{{me.timezone}}</view>
+</view>
+
+<view class="card">
+  <view class="title">我的学期</view>
+  <view class="secondary" style="margin-top: 8rpx">学期、时令与作息管理（阶段二开发中）</view>
+  <button class="btn-primary" style="margin-top: 24rpx" bindtap="goSemesters">进入学期管理</button>
+</view>
+
+<view class="card">
+  <view class="title">今日课表</view>
+  <view class="secondary" style="margin-top: 8rpx">时令节次自动适配的每日时间表</view>
+  <button class="btn-primary" style="margin-top: 24rpx" bindtap="goSchedule" disabled="{{!hasActiveSemester}}">
+    {{hasActiveSemester ? "查看课表" : "先创建学期"}}
+  </button>
+</view>
+
+<view class="card">
+  <view class="title">AI 课表助手</view>
+  <view class="secondary" style="margin-top: 8rpx">一句话调课 · 课表问答 · 假期提醒</view>
+  <button class="btn-primary" style="margin-top: 24rpx" bindtap="goAI" disabled="{{!hasActiveSemester}}">开始对话</button>
+</view>

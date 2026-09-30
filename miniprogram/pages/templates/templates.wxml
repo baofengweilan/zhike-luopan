@@ -1,0 +1,35 @@
+<view class="card" wx:for="{{groups}}" wx:key="weekday" wx:for-item="group">
+  <view class="title">{{group.label}}</view>
+  <view class="tpl" wx:for="{{group.items}}" wx:key="id" wx:for-item="tpl">
+    <view class="dot" style="background: {{tpl.color}}"></view>
+    <view class="info">
+      <view class="course">第 {{tpl.period_number}} 节 · {{tpl.course_name}}</view>
+      <view class="secondary">
+        {{tpl.patternLabel}}{{tpl.location ? " · " + tpl.location : ""}}{{tpl.teacher ? " · " + tpl.teacher : ""}}
+      </view>
+    </view>
+    <view class="link danger" catchtap="onDelete" data-id="{{tpl.id}}">删</view>
+  </view>
+</view>
+
+<view class="card" wx:if="{{groups.length === 0}}">
+  <view class="secondary">还没有模板课表。在下面添加"每周几第几节上什么课"。</view>
+</view>
+
+<view class="card">
+  <view class="title">添加课程</view>
+  <view class="form">
+    <picker mode="selector" range="{{weekdays}}" bindchange="onWeekday">
+      <view class="input">{{form.weekday >= 0 ? weekdays[form.weekday] : "星期几"}}</view>
+    </picker>
+    <input class="input" type="number" placeholder="第几节" value="{{form.period_number}}" data-field="period_number" bindinput="onField" />
+    <input class="input" placeholder="课程名" value="{{form.course_name}}" data-field="course_name" bindinput="onField" />
+    <picker mode="selector" range="{{patterns}}" range-key="label" bindchange="onPattern">
+      <view class="input">周次：{{form.pattern_label || "选择周次模式"}}</view>
+    </picker>
+    <input wx:if="{{form.pattern === 'custom'}}" class="input" placeholder="周区间，如 1-8,10-16" value="{{form.custom_pattern}}" data-field="custom_pattern" bindinput="onField" />
+    <input class="input" placeholder="地点（可选）" value="{{form.location}}" data-field="location" bindinput="onField" />
+    <input class="input" placeholder="教师（可选）" value="{{form.teacher}}" data-field="teacher" bindinput="onField" />
+    <button class="btn-primary" loading="{{submitting}}" bindtap="onSubmit">添加课程</button>
+  </view>
+</view>

@@ -1,12 +1,15 @@
 import {
   Adjustment,
   FEEDBACK_TYPE_LABELS,
+  ImportedCourse,
   Instance,
   adjustInstance,
   createFeedback,
   feedbackToConstraint,
   generateInstances,
   hhmm,
+  importScheduleApply,
+  importScheduleParse,
   listAdjustments,
   listInstances,
   listSemesters,
@@ -93,6 +96,16 @@ Page({
     feedbackId: "",
     feedbackResult: "",
     history: [] as Adjustment[],
+    // ---- ADR 0009：导入确认卡片（草稿 → 执行才入库） ----
+    importCard: {
+      visible: false,
+      importing: false,
+      filename: "",
+      rows: [] as string[], // 每门课一行的人类可读摘要
+      warnings: [] as string[],
+      courses: [] as ImportedCourse[],
+      clearExisting: false,
+    },
   },
 
   onLoad(options: { semesterId?: string }) {
@@ -281,6 +294,83 @@ Page({
     } catch (e) {
       wx.showToast({ title: (e as Error).message, icon: "none" });
     }
+  },
+
+  // ==== ADR 0009：文件导入课表（确认卡片流程） ====
+
+  /** 入口：从微信聊天记录选课表文件（docx/xlsx/pdf/txt），图片路径赛后再接 */
+  onImportTap() {
+    wx.chooseMessageFile({
+      count: 1,
+      type: "file",
+      extension: ["docx", "xlsx", "pdf", "txt"],
+      success: async (res) => {
+        const file = res.tempFiles[0];
+        logger.debug("schedule", "选中课表文件", file.name);
+        wx.showLoading({ title: "AI 识别中…" });
+        try {
+          const draft = await importScheduleParse(file.path);
+          wx.hideLoading();
+          // 每门课一行人类可读摘要：名称 · 周X 第a-b节 · 周次 · 地点
+          const rows = draft.courses.map((c) => {
+            const span =
+              c.end_period && c.end_period !== c.start_period
+                ? `${c.start_period}-${c.end_period}`
+                : `${c.start_period}`;
+            const parts = [
+              `${c.course_name} · ${WEEKDAYS[c.weekday]} 第${span}节`,
+              c.week_pattern === "all" ? "每周" : c.week_pattern === "odd" ? "单周" : c.week_pattern === "even" ? "双周" : `第${c.week_pattern}周`,
+            ];
+            if (c.location) parts.push(c.location);
+            if (c.teacher) parts.push(c.teacher);
+            return parts.join(" · ");
+          });
+          this.setData({
+            importCard: {
+              visible: true,
+              importing: false,
+              filename: draft.filename,
+              rows,
+              warnings: draft.warnings,
+              courses: draft.courses,
+              clearExisting: false,
+            },
+          });
+        } catch (e) {
+          wx.hideLoading();
+          logger.error("schedule", "导入解析失败", e);
+          wx.showToast({ title: (e as Error).message, icon: "none", duration: 3000 });
+        }
+      },
+    });
+  },
+
+  onImportToggleClear() {
+    this.setData({ "importCard.clearExisting": !this.data.importCard.clearExisting });
+  },
+
+  async onImportConfirm() {
+    if (this.data.importCard.importing) return;
+    this.setData({ "importCard.importing": true });
+    try {
+      const r = await importScheduleApply(
+        this.data.semesterId,
+        this.data.importCard.courses,
+        this.data.importCard.clearExisting
+      );
+      logger.info("schedule", "导入入库完成", r);
+      this.setData({ importCard: { ...this.data.importCard, visible: false, importing: false } });
+      wx.showToast({ title: r.message, icon: "none", duration: 3000 });
+      await this.load();
+    } catch (e) {
+      this.setData({ "importCard.importing": false });
+      logger.error("schedule", "导入入库失败", e);
+      wx.showToast({ title: (e as Error).message, icon: "none", duration: 3000 });
+    }
+  },
+
+  onImportCancel() {
+    this.setData({ importCard: { ...this.data.importCard, visible: false } });
   },
 
   onPickDay(e: WechatMiniprogram.Touch) {

@@ -332,3 +332,40 @@
   font-size: 38rpx;
   font-weight: 700;
 }
+
+/* ==== ADR 0009：导入确认卡片 ==== */
+.import-list {
+  max-height: 420rpx;
+  overflow-y: auto;
+  margin: 16rpx 0;
+  padding: 12rpx 16rpx;
+  background: #f7f8fa;
+  border-radius: 12rpx;
+}
+.import-row {
+  font-size: 24rpx;
+  line-height: 1.7;
+  color: #333;
+}
+.import-clear {
+  display: flex;
+  align-items: center;
+  font-size: 24rpx;
+  color: #666;
+  margin: 12rpx 0;
+}
+.import-checkbox {
+  width: 30rpx;
+  height: 30rpx;
+  border: 2rpx solid #bbb;
+  border-radius: 8rpx;
+  margin-right: 12rpx;
+}
+.import-checkbox.on {
+  background: #2f6fed;
+  border-color: #2f6fed;
+}
+.action.primary {
+  color: #fff;
+  background: #2f6fed;
+}

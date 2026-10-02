@@ -397,3 +397,45 @@ export interface AdjustSuggestion {
   start_time: string;
   end_time: string;
 }
+
+// ==== ADR 0009：文件导入课表 ====
+
+export interface ImportedCourse {
+  course_name: string;
+  teacher: string | null;
+  weekday: number; // 0=周一
+  start_period: number;
+  end_period: number | null;
+  week_pattern: string; // all / odd / even / 12-13,15
+  location: string | null;
+}
+
+export interface ImportParseResult {
+  file_type: string;
+  filename: string;
+  raw_chars: number;
+  courses: ImportedCourse[];
+  warnings: string[];
+}
+
+export interface ImportApplyResult {
+  message: string;
+  templates_added: number;
+  batch_skipped: number;
+  regenerated: { created: number; skipped: number };
+}
+
+/** 上传课表文件 → 混元结构化 → 返回导入草稿（不入库，等确认卡片执行） */
+export const importScheduleParse = (filePath: string) =>
+  uploadFile<ImportParseResult>("/api/ai/import-schedule/parse", filePath);
+
+/** 确认卡片点「执行」→ 草稿写入模板课表并重生成实例 */
+export const importScheduleApply = (
+  semesterId: string,
+  courses: ImportedCourse[],
+  clearExisting = false
+) =>
+  request<ImportApplyResult>("/api/ai/import-schedule/apply", {
+    method: "POST",
+    data: { semester_id: semesterId, courses, clear_existing: clearExisting },
+  });

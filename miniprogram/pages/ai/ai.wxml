@@ -1,7 +1,23 @@
 <scroll-view scroll-y class="chat" scroll-into-view="{{scrollInto}}">
   <view wx:for="{{messages}}" wx:key="index" id="msg-{{index}}"
     class="bubble-row {{item.role === 'user' ? 'me' : ''}}">
+    <!-- ADR 0009：文件导入确认卡片（Agent 范式：AI 提方案 → 用户授权 → 执行） -->
+    <view class="bubble import-card" wx:if="{{item.role === 'card'}}">
+      <view class="ic-text">{{item.text}}</view>
+      <view class="ic-list">
+        <view class="ic-course" wx:for="{{item.courses}}" wx:for-item="c" wx:key="index">
+          <view class="ic-name">{{c.course_name}}</view>
+          <view class="ic-meta">{{c.weekday === 0 ? "周一" : c.weekday === 1 ? "周二" : c.weekday === 2 ? "周三" : c.weekday === 3 ? "周四" : c.weekday === 4 ? "周五" : c.weekday === 5 ? "周六" : "周日"}} 第{{c.start_period}}{{c.end_period ? "-" + c.end_period : ""}}节 · {{c.week_pattern === "all" ? "每周" : c.week_pattern === "odd" ? "单周" : c.week_pattern === "even" ? "双周" : "第" + c.week_pattern + "周"}}{{c.location ? " · " + c.location : ""}}{{c.teacher ? " · " + c.teacher : ""}}</view>
+        </view>
+      </view>
+      <view class="ic-warn" wx:if="{{item.warnings.length > 0}}" wx:for="{{item.warnings}}" wx:for-item="w" wx:key="*this">⚠ {{w}}</view>
+      <view class="ic-actions">
+        <view class="ic-btn primary" bindtap="onCardConfirm" data-index="{{index}}">执行导入</view>
+        <view class="ic-btn" bindtap="onCardCancel">取消</view>
+      </view>
+    </view>
     <view class="bubble {{item.role === 'user' ? 'me' : item.role === 'link' ? 'link' : ''}}"
+      wx:else
       bindtap="{{item.role === 'link' ? 'goSchedule' : ''}}">
       {{item.text}}
     </view>
@@ -15,6 +31,7 @@
 </view>
 
 <view class="input-bar">
+  <view class="attach-btn" bindtap="onAttachFile">📎</view>
   <input class="input" placeholder="问课表，或直接说怎么调课" value="{{input}}"
     confirm-type="send" bindinput="onInput" bindconfirm="onSend" />
   <button class="send-btn" loading="{{sending}}" bindtap="onSend">发送</button>

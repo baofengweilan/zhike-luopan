@@ -54,6 +54,32 @@
 <view class="regen-row">
   <view class="regen link" bindtap="onRegenerate">↻ 重新生成课表</view>
   <view class="regen link" bindtap="onExportICS">📅 导出到日历</view>
+  <view class="regen link" bindtap="onImportTap">📥 导入课表</view>
+</view>
+
+<!-- ADR 0009：导入确认卡片（草稿展示 → 执行才入库） -->
+<view class="mask" wx:if="{{importCard.visible}}" bindtap="onImportCancel">
+  <view class="detail card" catchtap="">
+    <view class="title">导入课表确认</view>
+    <view class="secondary">文件：{{importCard.filename}}（识别到 {{importCard.courses.length}} 门课）</view>
+    <view class="import-list">
+      <view class="import-row" wx:for="{{importCard.rows}}" wx:key="*this">· {{item}}</view>
+    </view>
+    <view class="conflict-box" wx:if="{{importCard.warnings.length > 0}}">
+      <view class="conflict-title">注意事项：</view>
+      <view class="conflict-item" wx:for="{{importCard.warnings}}" wx:key="*this">· {{item}}</view>
+    </view>
+    <view class="import-clear" bindtap="onImportToggleClear">
+      <view class="import-checkbox {{importCard.clearExisting ? 'on' : ''}}"></view>
+      覆盖模式（清空现有课程后导入）
+    </view>
+    <view class="actions-row">
+      <view class="action primary" bindtap="onImportConfirm">
+        {{importCard.importing ? "导入中…" : "执行导入"}}
+      </view>
+      <view class="action" bindtap="onImportCancel">取消</view>
+    </view>
+  </view>
 </view>
 
 <!-- 详情弹层（任务书 3.8 详情 + 阶段五：调整/冲突/反馈/历史） -->

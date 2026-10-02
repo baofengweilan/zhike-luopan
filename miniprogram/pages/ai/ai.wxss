@@ -78,3 +78,64 @@ page {
   line-height: 72rpx;
   border-radius: 12rpx;
 }
+
+/* ==== ADR 0009：📎 发文件按钮 + 文件导入确认卡片 ==== */
+.attach-btn {
+  font-size: 40rpx;
+  padding: 0 16rpx;
+  line-height: 72rpx;
+}
+
+.import-card {
+  max-width: 86%;
+  background: #f0f5ff;
+  border: 2rpx solid var(--brand);
+}
+.ic-text {
+  font-size: 28rpx;
+  margin-bottom: 12rpx;
+}
+.ic-list {
+  max-height: 420rpx;
+  overflow-y: auto;
+  background: #fff;
+  border-radius: 12rpx;
+  padding: 12rpx 16rpx;
+}
+.ic-course {
+  padding: 8rpx 0;
+  border-bottom: 2rpx solid #f0f0f0;
+}
+.ic-name {
+  font-size: 28rpx;
+  font-weight: 600;
+}
+.ic-meta {
+  font-size: 22rpx;
+  color: #86909c;
+  margin-top: 4rpx;
+}
+.ic-warn {
+  font-size: 22rpx;
+  color: #d46b08;
+  margin-top: 8rpx;
+}
+.ic-actions {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 16rpx;
+}
+.ic-btn {
+  flex: 1;
+  text-align: center;
+  font-size: 26rpx;
+  line-height: 64rpx;
+  border-radius: 12rpx;
+  background: #fff;
+  border: 2rpx solid #dcdfe6;
+}
+.ic-btn.primary {
+  background: var(--brand);
+  color: #fff;
+  border-color: var(--brand);
+}

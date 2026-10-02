@@ -1,10 +1,21 @@
-import { aiAsk, aiParseRule, listSemesters } from "../../utils/api";
+import {
+  ImportedCourse,
+  aiAsk,
+  aiParseRule,
+  importScheduleApply,
+  importScheduleParse,
+  listSemesters,
+} from "../../utils/api";
 import { getToken } from "../../utils/token";
 import { logger } from "../../utils/logger";
 
 interface ChatMsg {
-  role: "user" | "ai" | "link";
+  role: "user" | "ai" | "link" | "card";
   text: string;
+  // card 角色（ADR 0009）：文件导入确认卡片
+  courses?: ImportedCourse[];
+  filename?: string;
+  warnings?: string[];
 }
 
 const QUICK_PROMPTS = ["明天有什么课？", "最近什么时候放假？", "把周一第3节数学改到第5节"];
@@ -65,6 +76,74 @@ Page({
   pushAi(text: string) {
     const messages = this.data.messages.concat({ role: "ai", text } as ChatMsg);
     this.setData({ messages, scrollInto: `msg-${messages.length - 1}` });
+  },
+
+  // ==== ADR 0009：发文件给 AI 助手 → 确认卡片 → 执行导入 ====
+
+  /** 📎 入口：从微信聊天记录选课表文件，AI 解析后回一张确认卡片 */
+  onAttachFile() {
+    if (this.data.sending) return;
+    wx.chooseMessageFile({
+      count: 1,
+      type: "file",
+      extension: ["docx", "xlsx", "pdf", "txt"],
+      success: async (res) => {
+        const file = res.tempFiles[0];
+        logger.debug("ai", "选中课表文件", file.name);
+        this.setData({ sending: true });
+        const messages = this.data.messages.concat({
+          role: "user",
+          text: `📎 发来课表文件：${file.name}`,
+        } as ChatMsg);
+        this.setData({ messages, scrollInto: `msg-${messages.length - 1}` });
+        try {
+          const draft = await importScheduleParse(file.path);
+          logger.debug("ai", "文件解析完成", draft.courses.length);
+          const card = {
+            role: "card",
+            text: `我读完了《${draft.filename}》，识别到 ${draft.courses.length} 门课。确认无误就点「执行导入」，我会帮你写进课表。`,
+            courses: draft.courses,
+            filename: draft.filename,
+            warnings: draft.warnings,
+          } as ChatMsg;
+          const messages2 = this.data.messages.concat(card as ChatMsg);
+          this.setData({ messages: messages2, scrollInto: `msg-${messages2.length - 1}` });
+        } catch (e) {
+          logger.error("ai", "文件解析失败", e);
+          this.pushAi(`文件没读明白：${(e as Error).message}`);
+        } finally {
+          this.setData({ sending: false });
+        }
+      },
+    });
+  },
+
+  /** 确认卡片「执行导入」：草稿入库 + 重生成课表 */
+  async onCardConfirm(e: WechatMiniprogram.Touch) {
+    const index = Number(e.currentTarget.dataset.index);
+    const card = this.data.messages[index];
+    if (!card || card.role !== "card" || !card.courses) return;
+    if (!this.data.semesterId) {
+      wx.showToast({ title: "请先创建当前学期", icon: "none" });
+      return;
+    }
+    this.setData({ sending: true });
+    try {
+      const r = await importScheduleApply(this.data.semesterId, card.courses);
+      logger.info("ai", "卡片导入完成", r);
+      const messages = this.data.messages.concat({ role: "ai", text: r.message } as ChatMsg);
+      this.setData({ messages, scrollInto: `msg-${messages.length - 1}` });
+    } catch (err) {
+      logger.error("ai", "卡片导入失败", err);
+      this.pushAi(`导入失败：${(err as Error).message}`);
+    } finally {
+      this.setData({ sending: false });
+    }
+  },
+
+  /** 确认卡片「取消」 */
+  onCardCancel() {
+    this.pushAi("好的，没有导入。文件内容随时可以再发给我。");
   },
 
   onInput(e: WechatMiniprogram.Input) {

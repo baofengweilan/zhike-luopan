@@ -4,7 +4,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -15,7 +15,13 @@ from app.models.ai import AIConversation
 from app.models.calendar import CourseTemplate
 from app.models.semester import Semester
 from app.models.user import User
-from app.schemas.ai import AskRequest, AskResponse, ParseRuleRequest, ParseRuleResponse
+from app.schemas.ai import (
+    AskRequest,
+    AskResponse,
+    ImportScheduleApplyRequest,
+    ParseRuleRequest,
+    ParseRuleResponse,
+)
 from app.services.ai import answer, parse_rule
 from app.services.generator import generate_instances
 
@@ -247,3 +253,125 @@ def suggest_adjust(
     instance = _get_owned_instance(db, user, body.get("instance_id", ""))
     suggestions = find_suggestions(db, db.get(Semester, instance.semester_id), instance)
     return {"suggestions": suggestions}
+
+
+# ==== ADR 0009：文件导入课表（解析管道的两个入口共用） ====
+
+
+@router.post("/import-schedule/parse")
+async def import_schedule_parse(
+    file: UploadFile, user: User = Depends(get_current_user)
+) -> dict:
+    """上传课表文件 → 提取文本 → 混元结构化 → 返回导入草稿（不入库）。
+
+    确认卡片展示 courses；用户点「执行」后调 /import-schedule/apply 入库。
+    """
+    from app.core.config import get_settings
+    from app.services.importer import extract_text, structure_courses
+
+    data = await file.read()
+    max_bytes = get_settings().MAX_UPLOAD_SIZE_MB * 1024 * 1024
+    if len(data) > max_bytes:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"文件超过大小限制（{get_settings().MAX_UPLOAD_SIZE_MB} MB）",
+        )
+    if not data:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "文件内容为空")
+
+    try:
+        raw_text, file_type = extract_text(file.filename or "", data)
+    except ValueError as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e)) from e
+    if not raw_text.strip():
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "没能从文件提取到文字。若是扫描版 PDF 或图片，请直接截图发给 AI 助手",
+        )
+
+    try:
+        courses, warnings, raw_chars = structure_courses(raw_text)
+    except ValueError as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e)) from e
+
+    logger.info(
+        "导入解析: user=%s file=%s type=%s courses=%d", user.id, file.filename, file_type, len(courses)
+    )
+    return {
+        "file_type": file_type,
+        "filename": file.filename,
+        "raw_chars": raw_chars,
+        "courses": [c.model_dump() for c in courses],
+        "warnings": warnings,
+    }
+
+
+@router.post("/import-schedule/apply")
+def import_schedule_apply(
+    body: ImportScheduleApplyRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """把确认过的导入草稿写入模板课表并重新生成实例。
+
+    clear_existing=True 时先清空该学期现有模板（覆盖式导入，用户在确认卡片上勾选）。
+    """
+    from app.services.importer import palette_for
+
+    semester = _get_owned_semester(db, user, body.semester_id)
+    _save_conversation(db, user.id, semester.id, "user", f"[导入] {len(body.courses)} 门课")
+
+    if body.clear_existing:
+        existing = db.scalars(
+            select(CourseTemplate).where(CourseTemplate.semester_id == semester.id)
+        ).all()
+        for tpl in existing:
+            db.delete(tpl)
+        db.flush()
+        logger.debug("覆盖式导入：已清空原模板 %d 条", len(existing))
+
+    # 冲突去重两级：① 同批次内同 weekday+period+week_pattern 只留第一条；
+    # ② 与库里已有模板撞槽的也跳过（不静默覆盖用户手排的课）——覆盖请用 clear_existing
+    seen: set[tuple[int, int, str]] = set()
+    if not body.clear_existing:
+        seen |= {
+            (t.weekday, t.period_number, t.week_pattern)
+            for t in db.scalars(
+                select(CourseTemplate).where(CourseTemplate.semester_id == semester.id)
+            )
+        }
+    added, skipped = 0, 0
+    for course in body.courses:
+        for period in range(course.start_period, (course.end_period or course.start_period) + 1):
+            key = (course.weekday, period, course.week_pattern)
+            if key in seen:
+                skipped += 1
+                continue
+            seen.add(key)
+            db.add(
+                CourseTemplate(
+                    semester_id=semester.id,
+                    weekday=course.weekday,
+                    period_number=period,
+                    week_pattern=course.week_pattern,
+                    course_name=course.course_name,
+                    location=course.location,
+                    teacher=course.teacher,
+                    color=palette_for(course.course_name),
+                )
+            )
+            added += 1
+    db.flush()
+
+    created, regenerated_skipped = generate_instances(db, semester)
+    message = f"导入完成：新增 {added} 节模板课，课表已重新生成（{created} 节）"
+    if skipped:
+        message += f"；批次内冲突跳过 {skipped} 节"
+    _save_conversation(db, user.id, semester.id, "assistant", message)
+    logger.info("导入入库: semester=%s 模板+%d 重生成 %d", semester.id, added, created)
+    return {
+        "message": message,
+        "templates_added": added,
+        "batch_skipped": skipped,
+        "regenerated": {"created": created, "skipped": regenerated_skipped},
+    }

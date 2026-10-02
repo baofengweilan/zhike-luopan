@@ -1,10 +1,19 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# .env 的规范位置在仓库根（README 约定 copy ..\.env.example ..\.env）。
+# 用绝对路径锚定，避免"从哪个目录启动服务"导致配置时有时无（2026-10-02 踩坑：
+# 从 backend/ 启动时 AI 配置静默丢失，ask 一直走规则引擎兜底）。
+_REPO_ROOT_ENV = str(Path(__file__).resolve().parents[3] / ".env")
+
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    # 先读 CWD 的 .env，再读仓库根的 .env（键冲突时后者覆盖——根目录是规范位置）
+    model_config = SettingsConfigDict(
+        env_file=(".env", _REPO_ROOT_ENV), env_file_encoding="utf-8", extra="ignore"
+    )
 
     # 基础
     DATABASE_URL: str = "sqlite:///./dev.db"

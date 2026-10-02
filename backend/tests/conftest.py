@@ -2,6 +2,12 @@ import os
 
 # 单测关掉后台调度器：避免 APScheduler 线程干扰 SQLite 内存库
 os.environ["SCHEDULER_ENABLED"] = "false"
+# 测试默认禁用真实 AI：环境变量优先级高于 .env 文件（config.py 会读到仓库根 .env
+# 里已配置的 Key），保证 ask/parse-rule 等走规则引擎、不联网不烧 Token。
+# 需要 LLM 的测试（如导入结构化）自行 monkeypatch ai_enabled + _llm_chat。
+os.environ["AI_API_KEY"] = ""
+os.environ["AI_BASE_URL"] = ""
+os.environ["AI_MODEL"] = ""
 
 import pytest
 from fastapi.testclient import TestClient

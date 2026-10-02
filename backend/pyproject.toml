@@ -19,6 +19,9 @@ dependencies = [
     "apscheduler>=3.10,<4",
     "truststore>=0.10",  # Windows 证书链补链（CloudBase 网关只发叶子证书，ADR 0007）
     "python-dotenv>=1.0",  # scripts 探针/工具读 .env 用
+    "python-docx>=1.1",  # ADR 0009：Word 课表导入
+    "openpyxl>=3.1",  # ADR 0009：Excel 课表导入
+    "pdfplumber>=0.11",  # ADR 0009：PDF（文本型）课表导入
 ]
 
 [project.optional-dependencies]

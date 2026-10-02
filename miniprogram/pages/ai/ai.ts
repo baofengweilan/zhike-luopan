@@ -1,4 +1,5 @@
 import { aiAsk, aiParseRule, listSemesters } from "../../utils/api";
+import { getToken } from "../../utils/token";
 import { logger } from "../../utils/logger";
 
 interface ChatMsg {
@@ -29,12 +30,32 @@ Page({
   },
 
   onLoad() {
+    // tab 页 onLoad 只跑一次；登录守卫与学期解析放 onShow（ADR 0006），
+    // 保证用户中途建好学期后切回 AI tab 能拿到正确的激活学期。
+  },
+
+  onShow() {
+    if (!getToken()) {
+      logger.debug("ai", "无 token，跳登录页");
+      wx.reLaunch({ url: "/pages/login/login" });
+      return;
+    }
+    this.resolveActiveSemester();
+  },
+
+  /** 每次切回都重新解析激活学期（首次进入会提示一次"先去建学期"） */
+  resolveActiveSemester() {
     listSemesters()
       .then((semesters) => {
         const active = semesters.find((s) => s.is_active);
         if (!active) {
-          this.pushAi("还没有当前学期。先去「学期管理」创建一个，再来找我调课。");
+          if (!this.data.semesterId) {
+            this.pushAi("还没有当前学期。先去「我的 → 学期管理」创建一个，再来找我调课。");
+          }
           return;
+        }
+        if (active.id !== this.data.semesterId) {
+          logger.debug("ai", "激活学期更新", active.id);
         }
         this.setData({ semesterId: active.id });
       })
@@ -91,6 +112,9 @@ Page({
   },
 
   goSchedule() {
-    wx.navigateTo({ url: `/pages/schedule/schedule?semesterId=${this.data.semesterId}` });
+    // tab 页禁止 navigateTo 携参 → 学期上下文走 globalData（ADR 0006），
+    // schedule.onShow 取走 pendingSemesterId 后会渲染对应学期。
+    getApp<IAppOption>().globalData.pendingSemesterId = this.data.semesterId;
+    wx.switchTab({ url: "/pages/schedule/schedule" });
   },
 });

@@ -17,6 +17,8 @@ dependencies = [
     "redis>=5.0",
     "python-multipart>=0.0.9",
     "apscheduler>=3.10,<4",
+    "truststore>=0.10",  # Windows 证书链补链（CloudBase 网关只发叶子证书，ADR 0007）
+    "python-dotenv>=1.0",  # scripts 探针/工具读 .env 用
 ]
 
 [project.optional-dependencies]

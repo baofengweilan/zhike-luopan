@@ -1,0 +1,9 @@
+{
+  "name": "ai-proxy",
+  "version": "1.0.0",
+  "description": "智课罗盘 AI 代理云函数：OpenAI 兼容壳 -> 云开发 SDK -> 混元 hy3（ADR 0007）",
+  "main": "index.js",
+  "dependencies": {
+    "@cloudbase/node-sdk": "^3.12.0"
+  }
+}

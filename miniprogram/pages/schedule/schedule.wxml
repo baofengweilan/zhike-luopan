@@ -1,3 +1,11 @@
+<!-- 无学期引导态（ADR 0006：首屏即课表，无学期时给创建的主动作，不灰置） -->
+<view class="guide card" wx:if="{{noSemester}}">
+  <view class="guide-title">欢迎来到智课罗盘</view>
+  <view class="secondary" style="margin-top: 16rpx">AI 驱动的个人课表：一句话调课 · 假期自动适配 · 课前提醒</view>
+  <button class="btn-primary" style="margin-top: 40rpx" bindtap="goCreateSemester">创建我的学期</button>
+</view>
+
+<block wx:else>
 <view class="toolbar">
   <view class="nav" bindtap="onPrev">‹</view>
   <view class="date-btn" bindtap="onToday">
@@ -10,14 +18,15 @@
   </view>
 </view>
 
-<!-- 日视图：今日列表（ScheduleView 主视图） -->
+<!-- 日视图：今日列表（ScheduleView 主视图；正在上的课高亮，下一节带标签） -->
 <view wx:if="{{mode === 'day'}}">
-  <view class="lesson" wx:for="{{dayItems}}" wx:key="id" bindtap="onShowDetail" data-id="{{item.id}}">
+  <view class="lesson {{item.isCurrent ? 'current' : ''}}" wx:for="{{dayItems}}" wx:key="id" bindtap="onShowDetail" data-id="{{item.id}}">
     <view class="period" style="background: {{item.color}}">{{item.period_number}}</view>
     <view class="lesson-main">
       <view class="course">
         {{item.course_name}}
         <text class="status" wx:if="{{item.statusLabel}}">{{item.statusLabel}}</text>
+        <text class="status next" wx:if="{{item.isNext}}">下一节</text>
       </view>
       <view class="secondary">{{item.startTime}} – {{item.endTime}}{{item.location ? " · " + item.location : ""}}{{item.teacher ? " · " + item.teacher : ""}}</view>
     </view>
@@ -145,3 +154,5 @@
     </block>
   </view>
 </view>
+
+</block>

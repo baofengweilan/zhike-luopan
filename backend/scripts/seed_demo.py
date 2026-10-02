@@ -32,7 +32,7 @@ def main():
         c.post("/api/auth/wx-login", json={"code": "demo"}), "mock 登录（演示账号）"
     )["access_token"]
     h = {"Authorization": f"Bearer {token}"}
-    j = lambda data: {**h, "Content-Type": "application/json"}  # noqa: E731
+    j = lambda data: {**h, "Content-Type": "application/json"}
 
     # 学期：下周一起 16 周（覆盖 2026 国庆，方便演示假期跳课与提醒）
     today = datetime.now(timezone(timedelta(hours=8))).date()

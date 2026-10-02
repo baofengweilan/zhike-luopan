@@ -152,7 +152,11 @@ def test_holiday_reminders(client, auth):
     today = datetime.now(UTC).date()
     monday = today - timedelta(days=today.weekday())
     start, end = monday.isoformat(), (monday + timedelta(days=13)).isoformat()
-    holiday_date = (monday + timedelta(days=3)).isoformat()
+    # 假期必须严格不早于"今天"（接口会跳过 ov.date < today 的假期）。
+    # 早期写死"周一+3"在周四~周日运行时会落到过去，导致 0 条提醒（日期脆弱）。
+    # 改为"明天"；若明天已越出两周学期（今天=第2周周日），钳回学期最后一天（=今天，仍能通过过滤）。
+    holiday = min(today + timedelta(days=1), monday + timedelta(days=13))
+    holiday_date = holiday.isoformat()
     resp = client.post(
         "/api/semesters",
         json={"name": "本周学期", "start_date": start, "end_date": end, "total_weeks": 2},

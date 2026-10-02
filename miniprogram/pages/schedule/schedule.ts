@@ -22,8 +22,17 @@ interface DayItem {
   weekdayLabel: string;
   dayLabel: string;
   isToday: boolean;
-  items: (Instance & { startTime: string; endTime: string; statusLabel: string })[];
+  items: LessonItem[];
 }
+
+/** 单节课渲染项：Instance + 格式化时间/状态 + 当前节/下一节高亮标记（ADR 0006 首屏信息） */
+type LessonItem = Instance & {
+  startTime: string;
+  endTime: string;
+  statusLabel: string;
+  isCurrent: boolean;
+  isNext: boolean;
+};
 
 type PopupView = "detail" | "adjust" | "feedback" | "feedbackDone" | "history";
 
@@ -40,22 +49,34 @@ function fmt(d: Date): string {
 
 /** 本周周一：周日按 7 算（与 CONTEXT.md"第 1 周"同款锚定习惯） */
 function mondayOf(dateStr: string): Date {
-  const d = new Date(`${dateStr.replace(/-/g, "/")}T00:00:00`);
+  // 注意：必须用 "YYYY-MM-DDT00:00:00"（标准 ISO）构造。
+  // 旧写法把 - 换成 / 再拼 T（"2026/10/01T00:00:00"）是非法混合格式，
+  // 部分引擎（含开发者工具模拟器）直接返回 Invalid Date → 全页日期 NaN。
+  const d = new Date(`${dateStr}T00:00:00`);
   const day = d.getDay() === 0 ? 7 : d.getDay();
   d.setDate(d.getDate() - (day - 1));
   return d;
 }
 
 function shift(dateStr: string, days: number): string {
-  const d = new Date(`${dateStr.replace(/-/g, "/")}T00:00:00`);
+  // 同 mondayOf：保持标准 ISO 格式，不要做 - → / 替换
+  const d = new Date(`${dateStr}T00:00:00`);
   d.setDate(d.getDate() + days);
   return fmt(d);
+}
+
+/** "HH:MM" → 当日分钟数，用于当前节/下一节判定 */
+function toMin(hhmmStr: string): number {
+  const [h, m] = hhmmStr.split(":").map(Number);
+  return h * 60 + m;
 }
 
 Page({
   data: {
     semesterId: "",
     baseUrl: "", // 教材封面等静态资源走后端 /uploads/
+    // 无任何学期时的首屏引导态（ADR 0006：入口不灰置，给创建学期的主动作）
+    noSemester: false,
     mode: "day" as "day" | "week",
     currentDate: fmt(new Date()),
     today: fmt(new Date()),
@@ -76,24 +97,62 @@ Page({
 
   onLoad(options: { semesterId?: string }) {
     this.setData({ baseUrl: getApp<IAppOption>().globalData.baseUrl });
+    // 兼容旧路径携带 ?semesterId=（tab 页正常入口是 onShow + globalData，见 ADR 0006）
     if (options.semesterId) {
-      this.setData({ semesterId: options.semesterId });
-      this.load();
-    } else {
-      // 未指定学期：取当前激活学期
-      listSemesters()
-        .then((semesters) => {
-          const active = semesters.find((s) => s.is_active);
-          if (!active) {
-            wx.showToast({ title: "请先创建学期", icon: "none" });
-            setTimeout(() => wx.navigateBack(), 800);
-            return;
-          }
-          this.setData({ semesterId: active.id });
-          this.load();
-        })
-        .catch((e) => wx.showToast({ title: (e as Error).message, icon: "none" }));
+      logger.debug("schedule", "onLoad 携带学期参数，转入 pendingSemesterId", options.semesterId);
+      getApp<IAppOption>().globalData.pendingSemesterId = options.semesterId;
     }
+  },
+
+  onShow() {
+    // tab 页每次切回都触发：登录守卫 → 重新解析学期上下文 → 刷新数据
+    // （顺带重算"当前节"高亮，回到首屏看到的永远是此刻的课表）
+    if (!getToken()) {
+      logger.debug("schedule", "无 token，跳登录页");
+      wx.reLaunch({ url: "/pages/login/login" });
+      return;
+    }
+    const app = getApp<IAppOption>();
+    const pending = app.globalData.pendingSemesterId;
+    if (pending) {
+      logger.debug("schedule", "取走跨页学期上下文", pending);
+      app.globalData.pendingSemesterId = "";
+    }
+    this.resolveSemester(pending);
+  },
+
+  /**
+   * 解析学期上下文（ADR 0006）：优先用跨页传入的学期，否则取当前激活学期。
+   * 无任何学期时进入首屏引导态——不灰置、不 toast 踢回，给"创建学期"的主动作。
+   */
+  async resolveSemester(preferredId: string) {
+    try {
+      const semesters = await listSemesters();
+      const target =
+        semesters.find((s) => s.id === preferredId) ?? semesters.find((s) => s.is_active);
+      if (!target) {
+        logger.debug("schedule", "无学期，进入首屏引导态");
+        this.setData({ noSemester: true, semesterId: "", dayItems: [], week: [] });
+        return;
+      }
+      if (target.id !== this.data.semesterId) {
+        logger.debug("schedule", "切换学期上下文", { from: this.data.semesterId, to: target.id });
+        // 换学期时把日期拨回今天，避免停在上个学期翻到的页
+        this.setData({ noSemester: false, semesterId: target.id, currentDate: this.data.today });
+      } else {
+        this.setData({ noSemester: false });
+      }
+      await this.load();
+    } catch (e) {
+      logger.error("schedule", "解析学期失败", e);
+      wx.showToast({ title: (e as Error).message, icon: "none" });
+    }
+  },
+
+  /** 首屏引导卡 → 学期管理（navigateTo 合法：semesters 不是 tab 页） */
+  goCreateSemester() {
+    logger.debug("schedule", "引导卡点击 → 学期管理");
+    wx.navigateTo({ url: "/pages/semesters/semesters" });
   },
 
   setMode(e: WechatMiniprogram.Touch) {
@@ -137,15 +196,47 @@ Page({
               startTime: hhmm(inst.start_time),
               endTime: hhmm(inst.end_time),
               statusLabel: STATUS_LABELS[inst.status] ?? "",
+              // 高亮标记由 markNow() 在 setData 前计算
+              isCurrent: false,
+              isNext: false,
             })),
         });
       }
       const current = week.find((x) => x.date === currentDate) ?? week[0];
-      this.setData({ week, dayItems: current?.items ?? [] });
+      const dayItems = current?.items ?? [];
+      this.markNow(dayItems);
+      this.setData({ week, dayItems });
     } catch (e) {
       logger.error("schedule", "加载课表失败", e);
       wx.showToast({ title: (e as Error).message, icon: "none" });
     }
+  },
+
+  /**
+   * 当前节/下一节高亮（ADR 0006"课表即首页"首屏信息）。
+   * 仅当天生效：正在进行的节标 isCurrent，当天第一节日时间未到的节标 isNext。
+   * 已取消的课也按原时间参与"下一节"判定，保持时间轴与真实作息一致。
+   * 直接在传入对象上打标（与 week 内同引用，setData 前完成即可）。
+   */
+  markNow(items: LessonItem[]) {
+    if (items.length === 0) return;
+    const isToday = this.data.currentDate === this.data.today;
+    const now = new Date();
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    let nextPending = isToday;
+    for (const it of items) {
+      const start = toMin(it.startTime);
+      const end = toMin(it.endTime);
+      it.isCurrent = isToday && nowMin >= start && nowMin < end;
+      it.isNext = nextPending && start > nowMin;
+      if (it.isNext) nextPending = false;
+    }
+    logger.debug("schedule", "当前节高亮计算", {
+      isToday,
+      nowMin,
+      currentCount: items.filter((i) => i.isCurrent).length,
+      nextCount: items.filter((i) => i.isNext).length,
+    });
   },
 
   /**

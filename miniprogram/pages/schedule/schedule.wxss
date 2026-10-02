@@ -307,3 +307,28 @@
   gap: 48rpx;
   margin-top: 24rpx;
 }
+
+/* ---- ADR 0006 首屏化新增 ---- */
+
+/* 正在上的课：品牌色描边 + 轻投影，让"现在上什么课"一眼可见 */
+.lesson.current {
+  border: 2rpx solid var(--brand);
+  box-shadow: 0 4rpx 16rpx rgba(47, 111, 237, 0.18);
+}
+
+/* "下一节"标签：与已调整/已取消的警示色区分，用品牌色 */
+.status.next {
+  color: var(--brand);
+}
+
+/* 无学期引导卡：居中、给主动作按钮 */
+.guide {
+  text-align: center;
+  padding: 72rpx 40rpx;
+  margin-top: 48rpx;
+}
+
+.guide-title {
+  font-size: 38rpx;
+  font-weight: 700;
+}

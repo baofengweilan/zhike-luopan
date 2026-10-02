@@ -1,0 +1,41 @@
+<!-- 用户信息卡（原首页首卡迁移，ADR 0006） -->
+<view class="card" wx:if="{{me}}">
+  <view class="user-row">
+    <image class="avatar" wx:if="{{me.avatar_url}}" src="{{me.avatar_url}}" mode="aspectFill" />
+    <view class="avatar avatar-fallback" wx:else>📖</view>
+    <view class="user-text">
+      <view class="title">{{me.nickname || "微信用户"}}</view>
+      <view class="secondary">时区：{{me.timezone}}</view>
+    </view>
+  </view>
+</view>
+
+<!-- 课表配置组：学期是唯一根入口，子页（时令/作息/校历/模板）挂在学期管理内 -->
+<view class="card">
+  <view class="group-title">课表配置</view>
+  <view class="menu-row" bindtap="goSemesters">
+    <text class="icon">🗓️</text>
+    <text class="label">学期管理</text>
+    <text class="chev">›</text>
+  </view>
+</view>
+
+<!-- 学习工具组 -->
+<view class="card">
+  <view class="group-title">学习工具</view>
+  <view class="menu-row" bindtap="goTextbooks">
+    <text class="icon">📚</text>
+    <text class="label">我的教材</text>
+    <text class="chev">›</text>
+  </view>
+  <view class="menu-row" bindtap="goPhotos">
+    <text class="icon">📷</text>
+    <text class="label">教室相册</text>
+    <text class="chev">›</text>
+  </view>
+  <view class="menu-row" bindtap="goReminders">
+    <text class="icon">⏰</text>
+    <text class="label">提醒管理</text>
+    <text class="chev">›</text>
+  </view>
+</view>

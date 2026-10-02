@@ -5,6 +5,7 @@ import {
   deleteSemester,
   listSemesters,
 } from "../../utils/api";
+import { logger } from "../../utils/logger";
 
 function today(): string {
   const d = new Date();
@@ -51,7 +52,8 @@ Page({
   getWeekdayHint(): string {
     const { start_date } = this.data.form;
     if (!start_date) return "";
-    const d = new Date(`${start_date.replace(/-/g, "/")}T00:00:00`);
+    // 标准 ISO 构造（schedule.ts mondayOf 同款坑：- 换 / 再拼 T 会得到 Invalid Date）
+    const d = new Date(`${start_date}T00:00:00`);
     return d.getDay() === 1 ? "" : "提示：建议学期开始日选周一，周次计算更直观";
   },
 
@@ -120,6 +122,10 @@ Page({
   },
 
   goSchedule(e: WechatMiniprogram.Touch) {
-    wx.navigateTo({ url: `/pages/schedule/schedule?semesterId=${e.currentTarget.dataset.id}` });
+    // 课表已是 tab 页（ADR 0006）：navigateTo 携参非法，学期上下文走 globalData
+    const semesterId = String(e.currentTarget.dataset.id);
+    logger.debug("semesters", "跳转课表 tab，携带学期", semesterId);
+    getApp<IAppOption>().globalData.pendingSemesterId = semesterId;
+    wx.switchTab({ url: "/pages/schedule/schedule" });
   },
 });

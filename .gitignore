@@ -11,6 +11,9 @@ htmlcov/
 .env
 .env.local
 miniprogram/**/project.private.config.json
+# CloudBase 部署配置：内含 PROXY_SECRET 共享密钥，禁止入库（模板见 README）
+cloudbase/**/cloudbaserc.json
+cloudbase/**/package-lock.json
 
 # Node
 node_modules/
@@ -26,3 +29,7 @@ uploads/
 .vscode/
 *.swp
 .DS_Store
+
+# 本地开发数据库
+backend/dev.db
+backend/*.db

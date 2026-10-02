@@ -1,7 +1,12 @@
-"""AI 服务层（ADR-0002）：统一接口，MoMA（OpenAI 兼容）或 mock。
+"""AI 服务层（ADR-0002/0007）：统一接口，任意 OpenAI 兼容大模型或 mock。
+
+供应商演进：MoMA（移动云杯赛方平台，ADR-0002）→ 腾讯云开发 CloudBase 混元 hy3
+（ADR-0007，MoMA Key 未批期间的主力）。两者都是 OpenAI Chat Completions 兼容网关，
+因此切换只改 .env 三个值（AI_BASE_URL / AI_API_KEY / AI_MODEL），代码零改动。
 
 mock 模式不是假数据：parse-rule 用正则做确定性解析（演示真实可用），
-ask 基于真实课表数据做模板化回答。Key 到位后同一接口切 MoMA。
+ask 基于真实课表数据做模板化回答。Key 到位后 ai_enabled() 自动为 true，
+同一接口切真实大模型，本模块的正则解析退为兜底路径（大模型解析失败时仍会走它）。
 """
 
 import json
@@ -26,6 +31,18 @@ CST = timezone(timedelta(hours=8))  # 全项目统一 Asia/Shanghai（任务书 
 WEEKDAY_CN = {"一": 0, "二": 1, "三": 2, "四": 3, "五": 4, "六": 5, "日": 6, "天": 6}
 CN_NUM = {"一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9, "十": 10}
 
+# Windows 证书链坑（2026-10-02 踩坑）：CloudBase 网关只发叶子证书，Python 不像浏览器
+# 会自动补中间证书，直接报 CERTIFICATE_VERIFY_FAILED。truststore 让 Python 复用操作
+# 系统的证书机制（自带补链）。库缺失时退回默认行为，不影响其他 OpenAI 兼容供应商。
+try:
+    import ssl as _ssl
+
+    import truststore
+
+    _SSL_CONTEXT: "_ssl.SSLContext | None" = truststore.SSLContext(_ssl.PROTOCOL_TLS_CLIENT)
+except ImportError:  # pragma: no cover - 仅依赖缺失时走
+    _SSL_CONTEXT = None
+
 
 class AIParseError(Exception):
     pass
@@ -37,14 +54,26 @@ class ChatResult:
 
 
 def ai_enabled() -> bool:
-    return bool(get_settings().AI_API_KEY and get_settings().AI_MODEL)
+    """三个配置齐了才算启用（缺 Base URL 会往空地址发请求，必须拦在配置层）。"""
+    s = get_settings()
+    return bool(s.AI_BASE_URL and s.AI_API_KEY and s.AI_MODEL)
 
 
-def _moma_chat(system: str, user: str) -> str:
-    """调用 MoMA（OpenAI 兼容 /chat/completions）。"""
+def _llm_chat(system: str, user: str) -> str:
+    """调用大模型（OpenAI 兼容 /chat/completions，供应商由 .env 决定，见 ADR-0002/0007）。
+
+    注意：httpx 不认系统代理（Steam++ 等不干扰这里），直连即可；
+    timeout=30 是给大模型的留量，规则引擎兜底路径没有网络开销。
+    """
     settings = get_settings()
     started = time.perf_counter()
-    logger.debug("MoMA 调用：model=%s，system=%d 字，user=%d 字", settings.AI_MODEL, len(system), len(user))
+    logger.debug(
+        "LLM 调用：base=%s model=%s，system=%d 字，user=%d 字",
+        settings.AI_BASE_URL,
+        settings.AI_MODEL,
+        len(system),
+        len(user),
+    )
     resp = httpx.post(
         f"{settings.AI_BASE_URL.rstrip('/')}/chat/completions",
         headers={"Authorization": f"Bearer {settings.AI_API_KEY}"},
@@ -57,11 +86,12 @@ def _moma_chat(system: str, user: str) -> str:
             "temperature": 0,
         },
         timeout=30,
+        verify=_SSL_CONTEXT,
     )
     resp.raise_for_status()
     data = resp.json()
     content = data["choices"][0]["message"]["content"]
-    logger.debug("MoMA 返回（%.1fs）：%s", time.perf_counter() - started, content[:200])
+    logger.debug("LLM 返回（%.1fs）：%s", time.perf_counter() - started, content[:200])
     return content
 
 
@@ -144,7 +174,7 @@ def parse_rule(text: str) -> tuple[ScheduleRule | None, str]:
             "只输出 JSON，不要解释。无法解析时输出 null。"
         )
         try:
-            content = _moma_chat(system, text)
+            content = _llm_chat(system, text)
             data = json.loads(content)
             if data is None:
                 logger.debug("AI 判定无法解析，降级 mock：%s", text)
@@ -217,7 +247,7 @@ def parse_holiday(text: str, today: date) -> tuple[list[dict], str]:
             "workday（补班）需给 follow_weekday（按周几课表上课，周一为0）。只输出 JSON 数组。"
         )
         try:
-            content = _moma_chat(system, text)
+            content = _llm_chat(system, text)
             data = json.loads(content)
             if isinstance(data, list):
                 logger.debug("公告解析(ai): %d 条覆盖", len(data))
@@ -338,7 +368,7 @@ def answer(db, semester: Semester, question: str) -> tuple[str, str]:
                 + context
                 + "\n不要编造数据里没有的课程或日期。"
             )
-            reply = _moma_chat(system, question)
+            reply = _llm_chat(system, question)
             logger.debug("AI 问答成功（学期 %s，问题：%s）", semester.id, question)
             return reply, "ai"
         except Exception as e:  # noqa: BLE001

@@ -1,14 +1,14 @@
 {
   "pages": [
-    "pages/index/index",
+    "pages/schedule/schedule",
+    "pages/ai/ai",
+    "pages/profile/profile",
     "pages/login/login",
     "pages/semesters/semesters",
     "pages/seasons/seasons",
     "pages/bells/bells",
     "pages/calendar/calendar",
     "pages/templates/templates",
-    "pages/schedule/schedule",
-    "pages/ai/ai",
     "pages/textbooks/textbooks",
     "pages/photos/photos",
     "pages/reminders/reminders"
@@ -18,6 +18,26 @@
     "navigationBarTitleText": "智课罗盘",
     "navigationBarTextStyle": "white",
     "backgroundColor": "#f5f6fa"
+  },
+  "tabBar": {
+    "color": "#86909c",
+    "selectedColor": "#2f6fed",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/schedule/schedule",
+        "text": "课表"
+      },
+      {
+        "pagePath": "pages/ai/ai",
+        "text": "AI 助手"
+      },
+      {
+        "pagePath": "pages/profile/profile",
+        "text": "我的"
+      }
+    ]
   },
   "style": "v2",
   "sitemapLocation": "sitemap.json"

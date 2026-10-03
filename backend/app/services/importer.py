@@ -21,8 +21,12 @@ from app.schemas.ai import ImportedCourse
 
 logger = logging.getLogger(__name__)
 
-# 支持的扩展名 → 提取器路由（值仅用于日志与报错文案）
+# 支持的扩展名 → 提取器路由（值仅用于日志与报错文案；图片与扫描 PDF 走 OCR，见 parse_schedule_file）
 SUPPORTED_EXTENSIONS = {".docx": "Word", ".xlsx": "Excel", ".pdf": "PDF", ".txt": "文本"}
+IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png")
+
+# 报错文案里列全支持的类型（图片括注依赖 OCR 密钥）
+_SUPPORTED_HINT = "Word、Excel、PDF、txt，图片（jpg/png）需在 .env 配置腾讯云 OCR 密钥"
 
 # 注入 LLM 的原始文本上限：超长课表截断（足够覆盖 20 周全量课表，防 Token 失控）
 MAX_RAW_CHARS = 8000
@@ -38,8 +42,8 @@ def extract_text(filename: str, data: bytes) -> tuple[str, str]:
     """
     lower = (filename or "").lower()
     ext = next((e for e in SUPPORTED_EXTENSIONS if lower.endswith(e)), None)
-    if ext is None:
-        raise ValueError(f"不支持的文件类型：{filename}。支持 {'、'.join(SUPPORTED_EXTENSIONS)}")
+    if ext is None and not lower.endswith(IMAGE_EXTENSIONS):
+        raise ValueError(f"不支持的文件类型：{filename}。支持 {_SUPPORTED_HINT}")
 
     try:
         if ext == ".docx":
@@ -510,12 +514,59 @@ def parse_weekly_grid_docx(data: bytes) -> tuple[list[ImportedCourse], list[str]
     return courses, warnings, sum(len(c["text"]) for c in cells)
 
 
+def _ensure_ocr_ready() -> None:
+    """OCR 未配密钥时给可执行的中文指引（去哪建密钥、配到哪）。"""
+    from app.services import ocr
+
+    if not ocr.ocr_enabled():
+        raise ValueError(
+            "识别图片需要腾讯云 OCR：请到 console.cloud.tencent.com/cam/capi 创建 API 密钥，"
+            "并填入后端 .env 的 TENCENT_SECRET_ID / TENCENT_SECRET_KEY"
+        )
+
+
+def parse_image_file(filename: str, data: bytes) -> tuple[list[ImportedCourse], list[str], int]:
+    """图片课表：腾讯云表格识别优先（保结构）→ 通用印刷体兜底 → 混元结构化（ADR 0009 §2）。"""
+    from app.services import ocr
+
+    _ensure_ocr_ready()
+    raw = ocr.image_to_text(data, filename)
+    if not raw.strip():
+        raise ValueError("图片里没识别到文字或表格。请确认是课表截图，且画面清晰完整")
+    courses, warnings, raw_chars = structure_courses(raw)
+    warnings.insert(0, "图片识别（OCR）：周次截图上通常不标注，默认按每周上课处理，导入后请核对")
+    logger.info("图片导入解析完成：%d 门课，%d 字 OCR 文本", len(courses), raw_chars)
+    return courses, warnings, raw_chars
+
+
+def parse_scanned_pdf(data: bytes) -> tuple[list[ImportedCourse], list[str], int]:
+    """扫描型 PDF：pdfplumber 提不出文字时，渲染前几页为图片走 OCR（ADR 0009 §2）。"""
+    from app.services import ocr
+
+    _ensure_ocr_ready()
+    parts = ocr.pdf_to_texts(data)
+    raw = "\n".join(parts)
+    if not raw.strip():
+        raise ValueError("PDF 里没识别到文字。请确认不是空文件或纯图片封面")
+    courses, warnings, raw_chars = structure_courses(raw)
+    warnings.insert(0, f"扫描版 PDF（OCR，取前 {len(parts)} 页）：导入后请核对课程与周次")
+    logger.info("扫描 PDF 导入解析完成：%d 门课", len(courses))
+    return courses, warnings, raw_chars
+
+
 def parse_schedule_file(filename: str, data: bytes) -> tuple[list[ImportedCourse], list[str], int, str]:
     """导入管道总入口（ADR 0009 §1）：按文件格式分发到最优解析路径。
 
     返回 (课程草稿, 警告, 原始字符数, 文件类型名)。ValueError 由路由层转 400。
+    路径优先级：图片直接走 OCR；docx 先试逐周表格精确提取；PDF 文本型失败降 OCR；
+    其余走通用文本管道。
     """
     lower = (filename or "").lower()
+
+    if lower.endswith(IMAGE_EXTENSIONS):
+        courses, warnings, chars = parse_image_file(filename, data)
+        return courses, warnings, chars, "图片(OCR)"
+
     if lower.endswith(".docx"):
         weekly = parse_weekly_grid_docx(data)
         if weekly is not None:
@@ -523,7 +574,11 @@ def parse_schedule_file(filename: str, data: bytes) -> tuple[list[ImportedCourse
 
     raw_text, file_type = extract_text(filename, data)
     if not raw_text.strip():
-        raise ValueError("没能从文件提取到文字。若是扫描版 PDF 或图片，请直接截图发给 AI 助手")
+        # PDF 提不出文字 → 扫描版，降 OCR（未配密钥则给出配置指引）
+        if lower.endswith(".pdf"):
+            courses, warnings, chars = parse_scanned_pdf(data)
+            return courses, warnings, chars, "PDF(OCR)"
+        raise ValueError("没能从文件提取到文字。扫描版 PDF 或图片请确认已配置腾讯云 OCR 密钥")
     courses, warnings, raw_chars = structure_courses(raw_text)
     return courses, warnings, raw_chars, file_type
 

@@ -15,9 +15,9 @@ os.environ["SCHEDULER_ENABLED"] = "false"
 
 logging.basicConfig(level=logging.WARNING)
 
-from fastapi.testclient import TestClient  # noqa: E402
+from fastapi.testclient import TestClient
 
-from app.main import app  # noqa: E402
+from app.main import app
 
 MESSAGES = [
     "帮我建这学期的课表，2026年8月31号开始，2027年1月17号结束，叫2026秋季学期",

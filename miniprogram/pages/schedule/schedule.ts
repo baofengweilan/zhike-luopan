@@ -399,12 +399,12 @@ Page({
 
   // ==== ADR 0009：文件导入课表（确认卡片流程） ====
 
-  /** 入口：从微信聊天记录选课表文件（docx/xlsx/pdf/txt），图片路径赛后再接 */
+  /** 入口：从微信聊天记录选课表文件（docx/xlsx/pdf/txt/jpg/png，图片走腾讯云 OCR） */
   onImportTap() {
     wx.chooseMessageFile({
       count: 1,
       type: "file",
-      extension: ["docx", "xlsx", "pdf", "txt"],
+      extension: ["docx", "xlsx", "pdf", "txt", "jpg", "jpeg", "png"],
       success: async (res) => {
         const file = res.tempFiles[0];
         logger.debug("schedule", "选中课表文件", file.name);

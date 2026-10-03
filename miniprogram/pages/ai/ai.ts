@@ -105,7 +105,7 @@ Page({
     wx.chooseMessageFile({
       count: 1,
       type: "file",
-      extension: ["docx", "xlsx", "pdf", "txt"],
+      extension: ["docx", "xlsx", "pdf", "txt", "jpg", "jpeg", "png"],
       success: async (res) => {
         const file = res.tempFiles[0];
         logger.debug("ai", "选中课表文件", file.name);

@@ -41,6 +41,10 @@ class Settings(BaseSettings):
     AI_API_KEY: str = ""
     AI_MODEL: str = ""
 
+    # 腾讯云 OCR（ADR 0009 图片路径：表格识别 + 通用印刷体；密钥只放 .env）
+    TENCENT_SECRET_ID: str = ""
+    TENCENT_SECRET_KEY: str = ""
+
     # 文件
     UPLOAD_DIR: str = "./uploads"
     MAX_UPLOAD_SIZE_MB: int = 10

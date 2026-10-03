@@ -22,6 +22,8 @@ dependencies = [
     "python-docx>=1.1",  # ADR 0009：Word 课表导入
     "openpyxl>=3.1",  # ADR 0009：Excel 课表导入
     "pdfplumber>=0.11",  # ADR 0009：PDF（文本型）课表导入
+    "pymupdf>=1.28",  # ADR 0009：扫描型 PDF → 页面 PNG（送 OCR）
+    "tencentcloud-sdk-python-ocr>=3.0",  # ADR 0009：图片路径腾讯云 OCR（用户 2026-10-03 拍板）
 ]
 
 [project.optional-dependencies]

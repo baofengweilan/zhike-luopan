@@ -131,7 +131,7 @@ def test_parse_and_apply_end_to_end(client, mock_wx, monkeypatch, semester):
     client_c, auth, sem = semester
     # conftest 默认禁 AI；这里显式开启并 mock 混元（LLM 结构化在单测里不联网）
     monkeypatch.setattr("app.services.ai.ai_enabled", lambda: True)
-    monkeypatch.setattr("app.services.ai._llm_chat", lambda s, u: LLM_JSON)
+    monkeypatch.setattr("app.services.ai._llm_chat", lambda s, u, timeout=30: LLM_JSON)
 
     xlsx = _make_xlsx([["周一", "1-2节", "物联网导论", "12-13周,15周"]])
     resp = client_c.post(
@@ -166,7 +166,7 @@ def test_parse_and_apply_end_to_end(client, mock_wx, monkeypatch, semester):
 
 def test_apply_clear_existing_replaces(client, mock_wx, monkeypatch, semester):
     client_c, auth, sem = semester
-    monkeypatch.setattr("app.services.ai._llm_chat", lambda s, u: LLM_JSON)
+    monkeypatch.setattr("app.services.ai._llm_chat", lambda s, u, timeout=30: LLM_JSON)
     courses = [
         {
             "course_name": "数据通信与计算机网络",

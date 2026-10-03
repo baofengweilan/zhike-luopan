@@ -59,20 +59,22 @@ def ai_enabled() -> bool:
     return bool(s.AI_BASE_URL and s.AI_API_KEY and s.AI_MODEL)
 
 
-def _llm_chat(system: str, user: str) -> str:
+def _llm_chat(system: str, user: str, timeout: int = 30) -> str:
     """调用大模型（OpenAI 兼容 /chat/completions，供应商由 .env 决定，见 ADR-0002/0007）。
 
-    注意：httpx 不认系统代理（Steam++ 等不干扰这里），直连即可；
-    timeout=30 是给大模型的留量，规则引擎兜底路径没有网络开销。
+    timeout：默认 30s 够普通问答/调课；整表结构化等重活由调用方放大（ADR 0009 导入用 180s）。
+    trust_env=False：显式直连。Windows 上 httpx 会读注册表系统代理（Steam++），多一跳
+    既添延迟又把可用性绑在代理软件上；网关直连实测可达，故强制绕开。
     """
     settings = get_settings()
     started = time.perf_counter()
     logger.debug(
-        "LLM 调用：base=%s model=%s，system=%d 字，user=%d 字",
+        "LLM 调用：base=%s model=%s，system=%d 字，user=%d 字，timeout=%ds",
         settings.AI_BASE_URL,
         settings.AI_MODEL,
         len(system),
         len(user),
+        timeout,
     )
     resp = httpx.post(
         f"{settings.AI_BASE_URL.rstrip('/')}/chat/completions",
@@ -85,8 +87,9 @@ def _llm_chat(system: str, user: str) -> str:
             ],
             "temperature": 0,
         },
-        timeout=30,
+        timeout=timeout,
         verify=_SSL_CONTEXT,
+        trust_env=False,
     )
     resp.raise_for_status()
     data = resp.json()

@@ -138,8 +138,93 @@ def normalize_week_pattern(raw: str | None) -> tuple[str, str | None]:
     return ",".join(parts), None
 
 
+def _compact_weeks(weeks: list[int]) -> str:
+    """[1,2,3,5] → "1-3,5"（连续周合并为区间）。"""
+    parts: list[str] = []
+    i = 0
+    while i < len(weeks):
+        j = i
+        while j + 1 < len(weeks) and weeks[j + 1] == weeks[j] + 1:
+            j += 1
+        parts.append(str(weeks[i]) if i == j else f"{weeks[i]}-{weeks[j]}")
+        i = j + 1
+    return ",".join(parts)
+
+
+def dedupe_week_blocks(text: str) -> str:
+    """逐周课表去重（ADR 0009 性能优化，2026-10-03）。
+
+    学校导出的逐周课表里，大部分周的表格内容完全相同（只有个别周有无课/特殊安排），
+    原文 6000+ 字符直接喂混元会超出云函数 60s 限时。本函数把"内容完全相同的周"
+    合并声明为【第1-3周】，通常能把输入压到 1/4，让混元在限时内跑完。
+
+    识别方式：块起点形如 "3周一周二"（数字+周+星期名）。要求星期名紧跟，
+    是为了不把课程备注里的 "12-13周,15周" 误当块起点。非逐周结构原样返回。
+    """
+    marks = list(re.finditer(r"(?:^|[^\d])(\d{1,2})周[一二三四五六日天]", text))
+    if len(marks) < 4:
+        return text
+
+    blocks: list[tuple[int, str]] = []
+    for i, m in enumerate(marks):
+        start = m.start(1)
+        end = marks[i + 1].start(1) if i + 1 < len(marks) else len(text)
+        blocks.append((int(m.group(1)), text[start:end].strip()))
+
+    groups: dict[str, list[int]] = {}
+    reps: dict[str, str] = {}
+    for week, content in blocks:
+        key = re.sub(r"\s+", "", content)
+        groups.setdefault(key, []).append(week)
+        reps.setdefault(key, content)
+
+    if len(groups) == len(blocks):
+        return text  # 每周都不同，无重复可压
+
+    lines = [
+        f"【{_compact_weeks(sorted(ws))}周】{reps[key]}" for key, ws in ((k, groups[k]) for k in groups)
+    ]
+    compacted = "\n".join(lines)
+    logger.info("周块去重：%d 块 → %d 组，%d 字符 → %d 字符", len(blocks), len(groups), len(text), len(compacted))
+    return compacted
+
+
+def _merge_patterns(a: str, b: str) -> str:
+    """合并两个周次模式为并集（"1-2"+"3-16"→"1-16"；"odd"+"even"→"all"；all 吞并一切）。"""
+    if a == b:
+        return a
+    if "all" in (a, b):
+        return "all"
+    if {a, b} == {"odd", "even"}:
+        return "all"
+    weeks: set[int] = set()
+    for p in (a, b):
+        if p == "odd":
+            weeks |= {w for w in range(1, 31) if w % 2 == 1}
+        elif p == "even":
+            weeks |= {w for w in range(1, 31) if w % 2 == 0}
+        else:
+            for part in p.split(","):
+                if "-" in part:
+                    lo, _, hi = part.partition("-")
+                    weeks |= set(range(int(lo), int(hi) + 1))
+                elif part.isdigit():
+                    weeks.add(int(part))
+    # 合并后若 1..max 全满 → all；奇偶性纯净 → odd/even
+    if weeks and weeks == set(range(1, max(weeks) + 1)):
+        return "all"
+    if weeks and all(w % 2 == 1 for w in weeks):
+        return "odd"
+    if weeks and all(w % 2 == 0 for w in weeks):
+        return "even"
+    return _compact_weeks(sorted(weeks))
+
+
 _IMPORT_SYSTEM_PROMPT = """你是高校课表解析器。用户会给你从 Word/Excel/PDF 课表文件提取的原始文本，\
 请把其中所有课程整理为严格 JSON。只输出 JSON，不要输出任何其他文字、注释或代码围栏。
+
+注意：文本中形如【第1-3周】的标记表示"这几周的课表完全相同"，括号后是这几周的公共内容；\
+请把标记里的每个周次都纳入对应课程的周次范围。
 
 输出格式：
 {"courses": [{
@@ -173,7 +258,7 @@ def structure_courses(raw_text: str) -> tuple[list[ImportedCourse], list[str], i
 
     trimmed = raw_text[:MAX_RAW_CHARS]
     logger.debug("导入结构化：原始 %d 字符（截至 %d）", len(raw_text), len(trimmed))
-    content = _llm_chat(_IMPORT_SYSTEM_PROMPT, trimmed)
+    content = _llm_chat(_IMPORT_SYSTEM_PROMPT, trimmed, timeout=180)
     logger.debug("导入结构化 LLM 返回：%s", content[:200])
 
     # 剥掉可能的 ```json 围栏再解析
@@ -213,6 +298,22 @@ def structure_courses(raw_text: str) -> tuple[list[ImportedCourse], list[str], i
         except (ValidationError, ValueError, TypeError) as exc:
             logger.debug("第 %d 条课程解析失败: %s", idx, exc)
             warnings.append(f"第 {idx} 条记录格式异常，已跳过")
+
+    # 同名同槽合并：逐周课表会被混元按周块拆成多条（weeks 分别是 1-2、3-16…），
+    # 同一门课在同一时段的各周次段合并为并集，确认卡片才可读（248 → ~40 条）
+    merged: dict[tuple, ImportedCourse] = {}
+    merged_order: list[tuple] = []
+    for c in courses:
+        mkey = (c.course_name, c.weekday, c.start_period, c.end_period, c.location, c.teacher)
+        if mkey in merged:
+            merged[mkey].week_pattern = _merge_patterns(merged[mkey].week_pattern, c.week_pattern)
+        else:
+            merged[mkey] = c
+            merged_order.append(mkey)
+    courses = [merged[k] for k in merged_order]
+
+    if not courses:
+        raise ValueError("没能从文件里识别出任何课程，请确认这是课表文件")
 
     if not courses:
         raise ValueError("没能从文件里识别出任何课程，请确认这是课表文件")

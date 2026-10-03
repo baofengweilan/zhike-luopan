@@ -311,7 +311,8 @@ export const deletePhoto = (id: string) =>
 export function uploadFile<T = unknown>(
   path: string,
   filePath: string,
-  formData?: Record<string, string>
+  formData?: Record<string, string>,
+  timeoutMs = 60000
 ): Promise<T> {
   const baseUrl = getApp<IAppOption>().globalData.baseUrl;
   return new Promise<T>((resolve, reject) => {
@@ -320,6 +321,7 @@ export function uploadFile<T = unknown>(
       filePath,
       name: "file",
       formData,
+      timeout: timeoutMs,
       header: { Authorization: `Bearer ${getToken() ?? ""}` },
       success(res) {
         if (res.statusCode >= 200 && res.statusCode < 300) {
@@ -425,9 +427,10 @@ export interface ImportApplyResult {
   regenerated: { created: number; skipped: number };
 }
 
-/** 上传课表文件 → 混元结构化 → 返回导入草稿（不入库，等确认卡片执行） */
+/** 上传课表文件 → 混元结构化 → 返回导入草稿（不入库，等确认卡片执行）
+ *  整学期课表混元要跑几十秒，超时放宽到 200s（后端/网关/云函数均已配套放宽） */
 export const importScheduleParse = (filePath: string) =>
-  uploadFile<ImportParseResult>("/api/ai/import-schedule/parse", filePath);
+  uploadFile<ImportParseResult>("/api/ai/import-schedule/parse", filePath, undefined, 200000);
 
 /** 确认卡片点「执行」→ 草稿写入模板课表并重生成实例 */
 export const importScheduleApply = (

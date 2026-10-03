@@ -20,8 +20,8 @@
 const cloudbase = require("@cloudbase/node-sdk");
 
 // 初始化：SYMBOL_CURRENT_ENV = 自动取当前云环境，不用写死环境 ID。
-// timeout 60s：官方建议，AI 生成可能耗时较长（官方文档 nodejs-access 页示例同款）
-const app = cloudbase.init({ env: cloudbase.SYMBOL_CURRENT_ENV, timeout: 60000 });
+// timeout 150s：整学期课表结构化混元要跑 60s+（云函数限时已配套改 150s，见 ADR 0009）
+const app = cloudbase.init({ env: cloudbase.SYMBOL_CURRENT_ENV, timeout: 150000 });
 
 // HTTP 访问服务入口（event 为 API 网关风格的请求结构）
 exports.main = async function (event) {

@@ -12,9 +12,10 @@
     {{currentDate}}{{currentDate === today ? " · 今日" : ""}}
   </view>
   <view class="nav" bindtap="onNext">›</view>
+  <view class="week-badge" wx:if="{{weekNo > 0}}">第 {{weekNo}} 周</view>
   <view class="seg">
-    <view class="seg-item {{mode === 'day' ? 'on' : ''}}" bindtap="setMode" data-mode="day">日</view>
     <view class="seg-item {{mode === 'week' ? 'on' : ''}}" bindtap="setMode" data-mode="week">周</view>
+    <view class="seg-item {{mode === 'day' ? 'on' : ''}}" bindtap="setMode" data-mode="day">日</view>
   </view>
 </view>
 
@@ -34,20 +35,37 @@
   <view class="empty secondary" wx:if="{{dayItems.length === 0}}">这一天没有课</view>
 </view>
 
-<!-- 周视图：横向滚动的 7 列日卡片 -->
-<scroll-view scroll-x class="week-scroll" wx:if="{{mode === 'week'}}" enhanced show-scrollbar="{{false}}">
-  <view class="week-row">
-    <view class="day-col {{item.isToday ? 'today' : ''}}" wx:for="{{week}}" wx:key="date"
-      bindtap="onPickDay" data-date="{{item.date}}">
-      <view class="day-head">{{item.weekdayLabel}} {{item.dayLabel}}</view>
-      <view class="mini" wx:for="{{item.items}}" wx:for-item="les" wx:key="id"
-        style="border-left: 6rpx solid {{les.color}}"
-        catchtap="onShowDetail" data-id="{{les.id}}">
-        <view class="mini-course">{{les.course_name}}</view>
-        <view class="mini-time">{{les.startTime}} 第{{les.period_number}}节</view>
+<!-- 周网格（ADR 0009 §4 完美校园风格）：节次时间轴 × 7 列，彩色课程卡按节次定位，
+     同日相邻同名连堂已合并为跨行卡片；点卡片开详情弹层（与日视图共用） -->
+<scroll-view scroll-y class="grid-scroll" wx:if="{{mode === 'week'}}" enhanced show-scrollbar="{{false}}">
+  <view class="grid">
+    <view class="grid-head">
+      <view class="grid-corner"></view>
+      <view class="grid-day {{d.isToday ? 'today' : ''}}" wx:for="{{week}}" wx:for-index="idx" wx:for-item="d" wx:key="date">
+        <view class="gd-name">{{d.weekdayLabel}}</view>
+        <view class="gd-date">{{d.dayLabel}}</view>
       </view>
-      <view class="secondary mini-empty" wx:if="{{item.items.length === 0}}">—</view>
     </view>
+    <view class="grid-body">
+      <view class="grid-times">
+        <view class="grid-time-cell" wx:for="{{gridPeriods}}" wx:key="*this">
+          <view class="gt-no">{{item}}</view>
+          <view class="gt-time">{{gridTimes[index]}}</view>
+        </view>
+      </view>
+      <view class="grid-cols">
+        <!-- 7 列背景：今日列高亮 -->
+        <view class="grid-col {{d.isToday ? 'today' : ''}}" wx:for="{{week}}" wx:for-item="d" wx:key="date"></view>
+        <!-- 课程卡片：绝对定位（left/top/height 由 buildGrid 算好） -->
+        <view class="grid-card {{item.cancelled ? 'cancelled' : ''}}" wx:for="{{gridCourses}}" wx:key="id"
+          style="left: {{item.left}}%; width: {{item.width}}%; top: {{item.top}}rpx; height: {{item.height}}rpx; background: {{item.color}};"
+          catchtap="onShowDetail" data-id="{{item.id}}">
+          <view class="gc-name">{{item.course_name}}</view>
+          <view class="gc-loc" wx:if="{{item.location}}">{{item.location}}</view>
+        </view>
+      </view>
+    </view>
+    <view class="secondary grid-empty" wx:if="{{gridCourses.length === 0}}">这一周没有课</view>
   </view>
 </scroll-view>
 

@@ -39,7 +39,25 @@ type LessonItem = Instance & {
 
 type PopupView = "detail" | "adjust" | "feedback" | "feedbackDone" | "history";
 
+/** 周网格课程卡（ADR 0009 §4 完美校园风格）：按星期列 × 节次行绝对定位 */
+interface GridCourse {
+  id: string;
+  course_name: string;
+  location: string;
+  color: string;
+  cancelled: boolean;
+  col: number; // 0-6 周一为 0
+  left: number; // 定位百分比（列宽 = 100/7 %）
+  width: number;
+  top: number; // rpx（ROW_H × (起始节-1)）
+  height: number; // rpx（ROW_H × 连堂数 - 卡片间隙）
+}
+
 const WEEKDAYS = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
+
+// 周网格几何常量（rpx）：与 wxss 里 .grid-card/.grid-times 行高保持一致
+const GRID_ROW_H = 108;
+const GRID_MAX_PERIOD = 12; // 行数上限（一般作息 ≤ 12 节）
 const STATUS_LABELS: Record<string, string> = {
   adjusted: "已调整",
   cancelled: "已取消",
@@ -80,11 +98,18 @@ Page({
     baseUrl: "", // 教材封面等静态资源走后端 /uploads/
     // 无任何学期时的首屏引导态（ADR 0006：入口不灰置，给创建学期的主动作）
     noSemester: false,
-    mode: "day" as "day" | "week",
+    mode: "week" as "day" | "week", // ADR 0009 §4：周网格为默认首屏（课表即首页）
     currentDate: fmt(new Date()),
     today: fmt(new Date()),
     dayItems: [] as DayItem["items"],
     week: [] as DayItem[],
+    // ---- 周网格（ADR 0009 §4）：彩色课程卡 + 节次时间轴 + 周次角标 ----
+    weekNo: 0, // 当前查看的是第几周（0 = 不在学期范围内）
+    gridPeriods: [] as number[],
+    gridTimes: [] as string[], // 与 gridPeriods 一一对应的作息开始时间（无数据留空）
+    gridCourses: [] as GridCourse[],
+    semesterStart: "",
+    totalWeeks: 0,
     // ---- 详情弹层（任务书 3.8 详情 + 阶段五调整/反馈/历史动线） ----
     selected: null as DayItem["items"][number] | null,
     popupView: "detail" as PopupView,
@@ -151,7 +176,13 @@ Page({
       if (target.id !== this.data.semesterId) {
         logger.debug("schedule", "切换学期上下文", { from: this.data.semesterId, to: target.id });
         // 换学期时把日期拨回今天，避免停在上个学期翻到的页
-        this.setData({ noSemester: false, semesterId: target.id, currentDate: this.data.today });
+        this.setData({
+          noSemester: false,
+          semesterId: target.id,
+          currentDate: this.data.today,
+          semesterStart: target.start_date,
+          totalWeeks: target.total_weeks,
+        });
       } else {
         this.setData({ noSemester: false });
       }
@@ -218,11 +249,81 @@ Page({
       const current = week.find((x) => x.date === currentDate) ?? week[0];
       const dayItems = current?.items ?? [];
       this.markNow(dayItems);
-      this.setData({ week, dayItems });
+      const grid = this.buildGrid(instances, monday);
+      this.setData({ week, dayItems, ...grid });
     } catch (e) {
       logger.error("schedule", "加载课表失败", e);
       wx.showToast({ title: (e as Error).message, icon: "none" });
     }
+  },
+
+  /**
+   * 构建周网格数据（ADR 0009 §4 完美校园风格）。
+   * 实例是单节的，同一天相邻同名的连堂课合并为一张跨行卡片；
+   * 已取消的课保留灰色卡片（时间轴完整，也符合"这节被调走了"的心智）。
+   */
+  buildGrid(instances: Instance[], monday: string): {
+    weekNo: number;
+    gridPeriods: number[];
+    gridTimes: string[];
+    gridCourses: GridCourse[];
+  } {
+    // 周次角标：查看周的周一相对学期首周周一的偏移；不在范围内显示 0（前端隐藏）
+    let weekNo = 0;
+    if (this.data.semesterStart) {
+      const startMonday = fmt(mondayOf(this.data.semesterStart));
+      const diff = Math.round((new Date(`${monday}T00:00:00`).getTime() - new Date(`${startMonday}T00:00:00`).getTime()) / 86400000);
+      const no = Math.round(diff / 7) + 1;
+      weekNo = no >= 1 && no <= this.data.totalWeeks ? no : 0;
+    }
+
+    // 节次行：1..max(12, 本周实际最大节次)；时间轴取该节次本周第一次出现的开始时间
+    const maxPeriod = instances.reduce((m, i) => Math.max(m, i.period_number), 0);
+    const periods: number[] = [];
+    const times: string[] = [];
+    const timeMap = new Map<number, string>();
+    for (const inst of instances) {
+      if (!timeMap.has(inst.period_number)) timeMap.set(inst.period_number, hhmm(inst.start_time));
+    }
+    for (let p = 1; p <= Math.max(GRID_MAX_PERIOD, maxPeriod); p++) {
+      periods.push(p);
+      times.push(timeMap.get(p) ?? "");
+    }
+
+    // 单节实例 → 网格卡片；同日相邻同名连堂合并（跨度 = 节数）
+    type Merged = { inst: Instance; col: number; span: number };
+    const byKey = new Map<string, Merged>();
+    for (const inst of instances) {
+      const d = new Date(`${inst.date}T00:00:00`);
+      const col = (d.getDay() === 0 ? 7 : d.getDay()) - 1;
+      const key = `${inst.date}|${inst.course_name}|${inst.location ?? ""}|${inst.status}`;
+      const prev = byKey.get(key);
+      if (prev && prev.inst.period_number + prev.span === inst.period_number) {
+        prev.span += 1; // 相邻同槽连堂 → 延伸卡片
+      } else {
+        byKey.set(key, { inst, col, span: 1 });
+      }
+    }
+    const colW = 100 / 7;
+    const gridCourses: GridCourse[] = [...byKey.values()].map(({ inst, col, span }) => ({
+      id: inst.id,
+      course_name: inst.course_name,
+      location: inst.location ?? "",
+      color: inst.color,
+      cancelled: inst.status === "cancelled",
+      col,
+      left: col * colW,
+      width: colW,
+      top: (inst.period_number - 1) * GRID_ROW_H,
+      height: span * GRID_ROW_H - 8,
+    }));
+    logger.debug("schedule", "周网格构建", {
+      实例: instances.length,
+      卡片: gridCourses.length,
+      节次行: periods.length,
+      周次: weekNo,
+    });
+    return { weekNo, gridPeriods: periods, gridTimes: times, gridCourses };
   },
 
   /**

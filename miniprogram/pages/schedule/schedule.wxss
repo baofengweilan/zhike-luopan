@@ -369,3 +369,153 @@
   color: #fff;
   background: #2f6fed;
 }
+
+/* ==== 周网格（ADR 0009 §4 完美校园风格）==== */
+
+.week-badge {
+  background: var(--brand);
+  color: #fff;
+  font-size: 22rpx;
+  border-radius: 999rpx;
+  padding: 8rpx 18rpx;
+  white-space: nowrap;
+}
+
+.grid-scroll {
+  height: calc(100vh - 220rpx);
+  padding: 0 16rpx;
+}
+
+.grid-head {
+  display: flex;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--bg, #f6f7fb);
+}
+
+.grid-corner {
+  width: 96rpx;
+  flex-shrink: 0;
+}
+
+.grid-day {
+  flex: 1;
+  text-align: center;
+  padding: 12rpx 0;
+  border-radius: 12rpx 12rpx 0 0;
+  color: var(--text-secondary);
+}
+
+.grid-day.today {
+  background: var(--brand);
+  color: #fff;
+}
+
+.gd-name {
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+.gd-date {
+  font-size: 20rpx;
+  opacity: 0.8;
+}
+
+.grid-body {
+  display: flex;
+  position: relative;
+  background: var(--card);
+  border-radius: 0 0 16rpx 16rpx;
+  overflow: hidden;
+}
+
+/* 时间轴列：行高必须与 schedule.ts 的 GRID_ROW_H（108rpx）一致 */
+.grid-times {
+  width: 96rpx;
+  flex-shrink: 0;
+}
+
+.grid-time-cell {
+  height: 108rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1rpx solid var(--line, #e8eaf0);
+}
+
+.gt-no {
+  font-size: 24rpx;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.gt-time {
+  font-size: 18rpx;
+  color: var(--text-secondary);
+  opacity: 0.7;
+}
+
+.grid-cols {
+  flex: 1;
+  display: flex;
+  position: relative;
+}
+
+.grid-col {
+  flex: 1;
+  border-left: 1rpx solid var(--line, #e8eaf0);
+  /* 横向网格线：每 108rpx 一条（同 GRID_ROW_H） */
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 107rpx,
+    var(--line, #e8eaf0) 107rpx,
+    var(--line, #e8eaf0) 108rpx
+  );
+}
+
+.grid-col.today {
+  background-color: rgba(47, 111, 237, 0.05);
+}
+
+.grid-card {
+  position: absolute;
+  border-radius: 12rpx;
+  padding: 8rpx 10rpx;
+  box-sizing: border-box;
+  color: #fff;
+  overflow: hidden;
+  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.12);
+}
+
+.grid-card.cancelled {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+
+.gc-name {
+  font-size: 22rpx;
+  font-weight: 600;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+
+.gc-loc {
+  font-size: 18rpx;
+  opacity: 0.85;
+  margin-top: 4rpx;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.grid-empty {
+  text-align: center;
+  padding: 40rpx 0;
+}

@@ -1,8 +1,17 @@
 <scroll-view scroll-y class="chat" scroll-into-view="{{scrollInto}}">
   <view wx:for="{{messages}}" wx:key="index" id="msg-{{index}}"
     class="bubble-row {{item.role === 'user' ? 'me' : ''}}">
+    <!-- ADR 0008：Agent 动作确认卡片（拟执行动作 → 用户授权 → 执行反馈） -->
+    <view class="bubble import-card" wx:elif="{{item.role === 'card' && item.cardKind === 'action'}}">
+      <view class="ic-text">{{item.text}}</view>
+      <view class="ic-warn">该操作会修改你的数据，确认后才执行。</view>
+      <view class="ic-actions">
+        <view class="ic-btn primary" bindtap="onActionConfirm" data-index="{{index}}">执行</view>
+        <view class="ic-btn" bindtap="onActionCancel">取消</view>
+      </view>
+    </view>
     <!-- ADR 0009：文件导入确认卡片（Agent 范式：AI 提方案 → 用户授权 → 执行） -->
-    <view class="bubble import-card" wx:if="{{item.role === 'card'}}">
+    <view class="bubble import-card" wx:elif="{{item.role === 'card'}}">
       <view class="ic-text">{{item.text}}</view>
       <view class="ic-list">
         <view class="ic-course" wx:for="{{item.courses}}" wx:for-item="c" wx:key="index">

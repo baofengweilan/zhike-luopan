@@ -255,6 +255,96 @@ def suggest_adjust(
     return {"suggestions": suggestions}
 
 
+# ==== ADR 0008：Agent 化（一次规划 + 分级确认执行） ====
+
+# 规划/执行入口共用：semester_id 可选（无学期也能对话，ADR 0008 §3）。
+# 有 semester_id 用它；否则回落到激活学期；再没有就 None（规划器据此引导代建）。
+
+
+def _resolve_agent_semester(db: Session, user: User, semester_id: str | None) -> Semester | None:
+    if semester_id:
+        return _get_owned_semester(db, user, semester_id)
+    return db.scalar(
+        select(Semester).where(Semester.user_id == user.id, Semester.is_active.is_(True))
+    )
+
+
+@router.post("/agent")
+def agent_chat(body: dict, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Agent 对话入口：一次规划，返回 reply 或待确认 action 草稿。
+
+    body: {message, semester_id?, history?: [{role, content}]（最多带 8 条，前端会话窗口）}
+    返回：{mode:"reply", text} 或 {mode:"action", text?, action:{tool,params,summary}}。
+    只读工具（query_*）在此就地执行，直接以 reply 返回结果（ADR 0008 §2 第一档）。
+    """
+    from app.services.agent import _TOOL_INDEX, PlanResult, execute, plan
+
+    message = str(body.get("message", "")).strip()
+    if not message:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "消息不能为空")
+    history = body.get("history") or []
+    if not isinstance(history, list):
+        history = []
+
+    semester = _resolve_agent_semester(db, user, body.get("semester_id"))
+    result = plan(db, user, semester, message, history)
+    logger.debug(
+        "Agent 规划：kind=%s tool=%s params=%s", result.kind, result.tool, result.params
+    )
+
+    if result.kind == "action" and result.tool in _TOOL_INDEX and _TOOL_INDEX[result.tool]["level"] == "read":
+        # 只读：就地执行并把结果当回复（一次请求闭环，无需确认卡片）
+        try:
+            text = execute(db, user, semester, result.tool, result.params)
+        except HTTPException:
+            raise
+        except Exception as e:  # noqa: BLE001 — 查询失败如实说，不装成功
+            logger.warning("只读工具 %s 执行失败：%s", result.tool, e)
+            text = f"查询出了点问题：{e}"
+        result = PlanResult(kind="reply", text=text)
+
+    semester_id = semester.id if semester else None
+    if result.kind == "reply":
+        _save_conversation(db, user.id, semester_id, "user", f"[Agent] {message}")
+        _save_conversation(db, user.id, semester_id, "assistant", result.text)
+        return {"mode": "reply", "text": result.text}
+
+    _save_conversation(db, user.id, semester_id, "user", f"[Agent] {message}")
+    _save_conversation(
+        db, user.id, semester_id, "assistant", f"[待确认] {result.tool} {result.summary}"
+    )
+    return {
+        "mode": "action",
+        "text": result.text,
+        "action": {"tool": result.tool, "params": result.params, "summary": result.summary},
+        "semester_id": semester_id,
+    }
+
+
+@router.post("/agent/execute")
+def agent_execute_route(
+    body: dict, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    """确认卡片「执行」：真正落库已确认的工具动作。
+
+    body: {tool, params, semester_id?}。返回 {message}。
+    """
+    from app.services.agent import execute
+
+    tool = str(body.get("tool", ""))
+    params = body.get("params") or {}
+    semester = _resolve_agent_semester(db, user, body.get("semester_id"))
+
+    try:
+        message = execute(db, user, semester, tool, params)
+    except ValueError as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e)) from e
+    # apply_rule 抛的 HTTPException（404/400）原样透传，卡片上如实显示失败原因
+    logger.info("Agent 执行: user=%s tool=%s", user.id, tool)
+    _save_conversation(db, user.id, semester.id if semester else None, "assistant", message)
+    return {"message": message}
+
+
 # ==== ADR 0009：文件导入课表（解析管道的两个入口共用） ====
 
 

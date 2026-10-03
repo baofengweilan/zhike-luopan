@@ -189,6 +189,49 @@ export const aiAsk = (semesterId: string | null, question: string) =>
     data: { semester_id: semesterId, question },
   });
 
+// ==== AI Agent（ADR 0008：一次规划 + 分级确认执行） ====
+
+/** 待确认动作草稿：mutate 工具先回卡片，用户点「执行」才真正落库 */
+export interface AgentAction {
+  tool: string;
+  params: Record<string, unknown>;
+  summary: string;
+}
+
+export interface AgentResult {
+  mode: "reply" | "action";
+  text?: string;
+  action?: AgentAction;
+  semester_id?: string | null;
+}
+
+export interface AgentHistoryMsg {
+  role: "user" | "assistant";
+  content: string;
+}
+
+/** Agent 对话入口：无学期也可对话（semesterId 传 null，ADR 0008 §3） */
+export const aiAgent = (
+  message: string,
+  semesterId: string | null,
+  history: AgentHistoryMsg[] = []
+) =>
+  request<AgentResult>("/api/ai/agent", {
+    method: "POST",
+    data: { message, semester_id: semesterId, history },
+  });
+
+/** 确认卡片「执行」：真正落库 */
+export const aiAgentExecute = (
+  tool: string,
+  params: Record<string, unknown>,
+  semesterId: string | null
+) =>
+  request<{ message: string }>("/api/ai/agent/execute", {
+    method: "POST",
+    data: { tool, params, semester_id: semesterId },
+  });
+
 // ==== 实时调整 / 反馈（阶段五） ====
 
 export interface Adjustment {

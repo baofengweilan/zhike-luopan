@@ -1,39 +1,47 @@
 import {
   ImportedCourse,
-  aiAsk,
-  aiParseRule,
+  aiAgent,
+  aiAgentExecute,
   importScheduleApply,
   importScheduleParse,
   listSemesters,
+  listTemplates,
 } from "../../utils/api";
 import { getToken } from "../../utils/token";
 import { logger } from "../../utils/logger";
 
+/** 待确认动作草稿（ADR 0008 §2 第二档） */
+interface AgentAction {
+  tool: string;
+  params: Record<string, unknown>;
+  summary: string;
+}
+
 interface ChatMsg {
   role: "user" | "ai" | "link" | "card";
   text: string;
-  // card 角色（ADR 0009）：文件导入确认卡片
+  // card 角色：cardKind 区分文件导入卡片（ADR 0009）与 Agent 动作卡片（ADR 0008）
+  cardKind?: "import" | "action";
+  action?: AgentAction;
   courses?: ImportedCourse[];
   filename?: string;
   warnings?: string[];
 }
 
-const QUICK_PROMPTS = ["明天有什么课？", "最近什么时候放假？", "把周一第3节数学改到第5节"];
-
-/** 疑似调课指令 → 走 parse-rule；否则走问答 */
-function looksLikeRule(text: string): boolean {
-  return /第.{1,3}节|周[一二三四五六日天]/.test(text) && /(改|换|调|挪|加|添加|删|去掉|取消)/.test(text);
-}
+// ADR 0008 §5：按本地状态条件渲染三套静态建议集（每条都落到真实存在的功能）
+const QUICK_NO_SEMESTER = ["帮我建这学期课表", "先设置时令作息"];
+const QUICK_EMPTY_SCHEDULE = ["添加一门课", "帮我生成课表"];
+const QUICK_WITH_SCHEDULE = ["明天有什么课？", "这周有什么假"];
 
 Page({
   data: {
     messages: [
       {
         role: "ai",
-        text: "你好！我是课表助手。可以问我课表问题，也可以直接用一句话调课。",
+        text: "你好！我是课表助手，能查课、查放假，也能替你调课、建提醒、建学期。直接说需求就行。",
       },
     ] as ChatMsg[],
-    quickPrompts: QUICK_PROMPTS,
+    quickPrompts: QUICK_WITH_SCHEDULE,
     input: "",
     sending: false,
     scrollInto: "",
@@ -54,21 +62,32 @@ Page({
     this.resolveActiveSemester();
   },
 
-  /** 每次切回都重新解析激活学期（首次进入会提示一次"先去建学期"） */
+  /** 每次切回都重新解析激活学期 + 刷新建议集（ADR 0008 §5 按状态条件渲染） */
   resolveActiveSemester() {
     listSemesters()
-      .then((semesters) => {
+      .then(async (semesters) => {
         const active = semesters.find((s) => s.is_active);
         if (!active) {
           if (!this.data.semesterId) {
-            this.pushAi("还没有当前学期。先去「我的 → 学期管理」创建一个，再来找我调课。");
+            this.pushAi("还没有当前学期。直接跟我说「帮我建这学期课表」就行，我来办。");
           }
+          this.setData({ quickPrompts: QUICK_NO_SEMESTER, semesterId: "" });
           return;
         }
         if (active.id !== this.data.semesterId) {
           logger.debug("ai", "激活学期更新", active.id);
         }
         this.setData({ semesterId: active.id });
+        // 课表是否为空决定第二/第三套建议集（一次轻量查询，失败不阻塞对话）
+        try {
+          const templates = await listTemplates(active.id);
+          this.setData({
+            quickPrompts: templates.length > 0 ? QUICK_WITH_SCHEDULE : QUICK_EMPTY_SCHEDULE,
+          });
+        } catch (e) {
+          logger.debug("ai", "模板查询失败，建议集用默认", e);
+          this.setData({ quickPrompts: QUICK_WITH_SCHEDULE });
+        }
       })
       .catch((e) => this.pushAi((e as Error).message));
   },
@@ -101,6 +120,7 @@ Page({
           logger.debug("ai", "文件解析完成", draft.courses.length);
           const card = {
             role: "card",
+            cardKind: "import",
             text: `我读完了《${draft.filename}》，识别到 ${draft.courses.length} 门课。确认无误就点「执行导入」，我会帮你写进课表。`,
             courses: draft.courses,
             filename: draft.filename,
@@ -146,6 +166,40 @@ Page({
     this.pushAi("好的，没有导入。文件内容随时可以再发给我。");
   },
 
+  // ==== ADR 0008：Agent 动作卡片（拟执行动作 → 用户授权 → 执行反馈） ====
+
+  /** 动作卡片「执行」：调 /agent/execute 真正落库 */
+  async onActionConfirm(e: WechatMiniprogram.Touch) {
+    const index = Number(e.currentTarget.dataset.index);
+    const card = this.data.messages[index];
+    if (!card || !card.action) return;
+    this.setData({ sending: true });
+    try {
+      const r = await aiAgentExecute(
+        card.action.tool,
+        card.action.params,
+        this.data.semesterId || null
+      );
+      logger.info("ai", "Agent 动作执行完成", r.message);
+      const messages = this.data.messages.concat({ role: "ai", text: r.message } as ChatMsg);
+      this.setData({ messages, scrollInto: `msg-${messages.length - 1}` });
+      // 建学期类动作会改变激活学期 → 重新解析（顺带刷新建议集）
+      if (card.action.tool === "create_semester") {
+        this.resolveActiveSemester();
+      }
+    } catch (err) {
+      logger.error("ai", "Agent 动作执行失败", err);
+      this.pushAi(`没执行成功：${(err as Error).message}`);
+    } finally {
+      this.setData({ sending: false });
+    }
+  },
+
+  /** 动作卡片「取消」 */
+  onActionCancel() {
+    this.pushAi("好的，先不动。需要时再跟我说一声。");
+  },
+
   onInput(e: WechatMiniprogram.Input) {
     this.setData({ input: e.detail.value });
   },
@@ -161,29 +215,40 @@ Page({
   async send(raw: string) {
     const text = (raw ?? "").trim();
     if (!text || this.data.sending) return;
-    if (!this.data.semesterId) {
-      wx.showToast({ title: "请先创建当前学期", icon: "none" });
-      return;
-    }
+    // ADR 0008 §3：无学期也可对话（Agent 会引导 AI 代建），不再拦「请先创建学期」
     const messages = this.data.messages.concat({ role: "user", text } as ChatMsg);
     this.setData({ messages, input: "", sending: true, scrollInto: `msg-${messages.length - 1}` });
     try {
-      const asRule = looksLikeRule(text);
-      logger.debug("ai", `收到消息（${asRule ? "调课指令" : "问答"}）：${text}`);
-      if (asRule) {
-        const result = await aiParseRule(this.data.semesterId, text);
-        logger.debug("ai", "parse-rule 结果：", result);
-        const messages2 = this.data.messages.concat({ role: "ai", text: result.message } as ChatMsg);
-        if (result.applied) {
-          messages2.push({ role: "link", text: "课表已更新，点这里查看 →" } as ChatMsg);
-        }
-        this.setData({ messages: messages2, scrollInto: `msg-${messages2.length - 1}` });
-      } else {
-        const { answer } = await aiAsk(this.data.semesterId, text);
-        this.pushAi(answer);
+      // 带最近 8 条纯文本对话给规划器当上下文（卡片/链接类不进历史）
+      const history = this.data.messages
+        .filter((m) => m.role === "user" || m.role === "ai")
+        .slice(-8)
+        .map((m) => ({
+          role: m.role === "user" ? ("user" as const) : ("assistant" as const),
+          content: m.text,
+        }));
+      logger.debug("ai", `Agent 收到消息：${text}`);
+      const r = await aiAgent(text, this.data.semesterId || null, history);
+      logger.debug("ai", "Agent 规划结果：", r.mode, r.action?.tool ?? "");
+      if (r.mode === "reply") {
+        this.pushAi(r.text || "好的。");
+        return;
       }
+      if (!r.action) {
+        this.pushAi("我拿不准这句话的意思，换个说法试试？");
+        return;
+      }
+      // mutate 工具：渲染动作卡片，等用户授权（ADR 0008 §2 第二档）
+      const card = {
+        role: "card",
+        cardKind: "action",
+        text: `我准备这样办：${r.action.summary}`,
+        action: r.action,
+      } as ChatMsg;
+      const messages2 = this.data.messages.concat(card as ChatMsg);
+      this.setData({ messages: messages2, scrollInto: `msg-${messages2.length - 1}` });
     } catch (e) {
-      logger.error("ai", "请求失败：", e);
+      logger.error("ai", "Agent 请求失败：", e);
       this.pushAi(`出错了：${(e as Error).message}`);
     } finally {
       this.setData({ sending: false });

@@ -264,10 +264,12 @@ async def import_schedule_parse(
 ) -> dict:
     """上传课表文件 → 提取文本 → 混元结构化 → 返回导入草稿（不入库）。
 
-    确认卡片展示 courses；用户点「执行」后调 /import-schedule/apply 入库。
+    上传课表文件 → 解析管道总入口（逐周表格精确提取优先，通用文本管道兜底）
+    → 返回导入草稿（不入库）。确认卡片展示 courses；用户点「执行」后调
+    /import-schedule/apply 入库。
     """
     from app.core.config import get_settings
-    from app.services.importer import extract_text, structure_courses
+    from app.services.importer import parse_schedule_file
 
     data = await file.read()
     max_bytes = get_settings().MAX_UPLOAD_SIZE_MB * 1024 * 1024
@@ -280,17 +282,7 @@ async def import_schedule_parse(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "文件内容为空")
 
     try:
-        raw_text, file_type = extract_text(file.filename or "", data)
-    except ValueError as e:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e)) from e
-    if not raw_text.strip():
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            "没能从文件提取到文字。若是扫描版 PDF 或图片，请直接截图发给 AI 助手",
-        )
-
-    try:
-        courses, warnings, raw_chars = structure_courses(raw_text)
+        courses, warnings, raw_chars, file_type = parse_schedule_file(file.filename or "", data)
     except ValueError as e:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e)) from e
 

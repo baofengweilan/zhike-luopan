@@ -6,7 +6,7 @@ import json
 import pytest
 
 from app.core.calendar import pattern_matches
-from app.services.importer import extract_text, normalize_week_pattern
+from app.services.importer import extract_text, normalize_week_pattern, parse_weekly_grid_docx
 
 # ==== 文本提取 ====
 
@@ -85,6 +85,134 @@ def test_week_pattern_exact_matches_generator():
     assert pattern_matches("12-13,15", 15)
     assert not pattern_matches("12-13,15", 14)
     assert not pattern_matches("12-13,15", 1)
+
+
+# ==== 逐周表格精确提取（ADR 0009 验证关卡替代解：周次确定性归属，LLM 只拆课名/教室） ====
+
+
+def _make_weekly_docx(week_cells: dict[int, list[list[str]]]) -> bytes:
+    """造"逐周表格"型 Word：每周一张表，行0=周次、行1=星期表头、其后为节次槽内容行。"""
+    from docx import Document
+
+    doc = Document()
+    for week, rows in sorted(week_cells.items()):
+        table = doc.add_table(rows=len(rows), cols=5)
+        for r, row in enumerate(rows):
+            for c, cell in enumerate(row):
+                table.cell(r, c).text = cell
+    buf = io.BytesIO()
+    doc.save(buf)
+    return buf.getvalue()
+
+
+WEEK_HEADER = ["周一", "周二", "周三", "周四", "周五"]
+
+# 拆分请求按提示词分流：单元格拆分器拿固定答案，通用结构化（旧管道）拿 LLM_JSON
+SPLIT_JSON = json.dumps(
+    [
+        {"key": 1, "name": "C语言程序设计", "teacher": None, "location": "宝实A113计算机实验室十一", "periods": None},
+        {"key": 2, "name": "物联网导论", "teacher": None, "location": "宝教二110", "periods": "3-4"},
+    ],
+    ensure_ascii=False,
+)
+
+
+def _fake_llm_chat(system: str, user: str, timeout: int = 30) -> str:
+    if "单元格拆分" in system:
+        return SPLIT_JSON
+    return LLM_JSON
+
+
+def test_weekly_grid_deterministic_weeks(monkeypatch):
+    """周次来自表格所在表而非 LLM 猜测：同一单元格出现在第 1、2 周 → "1,2"。"""
+    monkeypatch.setattr("app.services.ai._llm_chat", _fake_llm_chat)
+    monkeypatch.setattr("app.services.ai.ai_enabled", lambda: True)
+    data = _make_weekly_docx(
+        {
+            1: [
+                ["1", "1", "1", "1", "1"],
+                WEEK_HEADER,
+                ["C语言程序设计宝实A113 计算机实验室十一", "", "", "", "周5无课"],
+                ["", "", "", "物联网导论(3-4节)12-13周,15周宝教二110", ""],
+            ],
+            2: [
+                ["2", "2", "2", "2", "2"],
+                ["C语言程序设计宝实A113 计算机实验室十一", "", "", "", ""],
+                ["", "", "", "", ""],
+            ],
+            3: [
+                ["3", "3", "3", "3", "3"],
+                ["", "", "", "", ""],
+                ["", "", "", "", ""],
+            ],
+        }
+    )
+    courses, warnings, _ = parse_weekly_grid_docx(data)
+    assert warnings and "逐周课表" in warnings[0]
+
+    c_lang = [c for c in courses if c.course_name == "C语言程序设计"]
+    assert len(c_lang) == 1
+    assert c_lang[0].weekday == 0 and c_lang[0].week_pattern == "1-2"  # 跨周精确并集（连续周合并为区间）
+    assert (c_lang[0].start_period, c_lang[0].end_period) == (1, 2)  # 槽位默认映射
+
+    dao = [c for c in courses if c.course_name == "物联网导论"]
+    assert len(dao) == 1
+    assert dao[0].weekday == 3
+    assert dao[0].week_pattern == "12-13,15"  # 单元格显式周次标注权威于所在表
+    assert (dao[0].start_period, dao[0].end_period) == (3, 4)  # 显式节次标注覆盖槽位默认
+
+
+def test_weekly_grid_not_this_format_returns_none(monkeypatch):
+    """普通 Word（无逐周表格特征）→ 返回 None，由通用文本管道接管。"""
+    monkeypatch.setattr("app.services.ai._llm_chat", _fake_llm_chat)
+    monkeypatch.setattr("app.services.ai.ai_enabled", lambda: True)
+    data = _make_docx([["节次", "周一"], ["第1节", "高等数学 | 宝教二102"]])
+    assert parse_weekly_grid_docx(data) is None
+
+
+def test_parse_route_weekly_docx_end_to_end(client, mock_wx, monkeypatch, semester):
+    """逐周表格 Word 走 /import-schedule/parse → 确认卡片 → apply 入库全链路。"""
+    client_c, auth, sem = semester
+    monkeypatch.setattr("app.services.ai.ai_enabled", lambda: True)
+    monkeypatch.setattr("app.services.ai._llm_chat", _fake_llm_chat)
+
+    data = _make_weekly_docx(
+        {
+            1: [
+                ["1", "1", "1", "1", "1"],
+                WEEK_HEADER,
+                ["C语言程序设计宝实A113 计算机实验室十一", "", "", "", ""],
+            ],
+            2: [
+                ["2", "2", "2", "2", "2"],
+                ["C语言程序设计宝实A113 计算机实验室十一", "", "", "", ""],
+            ],
+            3: [
+                ["3", "3", "3", "3", "3"],
+                ["", "", "", "", ""],
+            ],
+        }
+    )
+    resp = client_c.post(
+        "/api/ai/import-schedule/parse",
+        files={"file": ("课表.docx", data, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
+        headers=auth,
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["file_type"] == "Word(逐周表格)"
+    assert len(body["courses"]) == 1
+    assert body["courses"][0]["week_pattern"] == "1-2"
+
+    apply_resp = client_c.post(
+        "/api/ai/import-schedule/apply",
+        json={"semester_id": sem["id"], "courses": body["courses"], "clear_existing": True},
+        headers=auth,
+    )
+    assert apply_resp.status_code == 200, apply_resp.text
+    tpls = client_c.get(f"/api/semesters/{sem['id']}/templates", headers=auth).json()
+    c_tpls = [t for t in tpls if t["course_name"] == "C语言程序设计"]
+    assert {t["week_pattern"] for t in c_tpls} == {"1-2"}
 
 
 # ==== 端到端：parse（mock LLM）→ apply 入库 ====
